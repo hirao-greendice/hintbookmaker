@@ -64,11 +64,11 @@ function resolveRunFontFamily(
   defaultFontFamily?: string,
   cellFontFamily?: string,
 ) {
-  if (defaultFontFamily?.trim()) {
-    return defaultFontFamily
-  }
-
-  return run.fontFamily?.trim() ?? cellFontFamily?.trim()
+  return (
+    run.fontFamily?.trim() ??
+    cellFontFamily?.trim() ??
+    defaultFontFamily?.trim()
+  )
 }
 
 function resolveTextDecoration(
@@ -99,15 +99,14 @@ function runStyle(
     cellFontFamily?: string
     baseFontSize?: number
     baseTextColor?: string
+    omitFontFamily?: boolean
   },
 ) {
   return {
     color: run.textColor ?? options.baseTextColor,
-    fontFamily: resolveRunFontFamily(
-      run,
-      options.defaultFontFamily,
-      options.cellFontFamily,
-    ),
+    fontFamily: options.omitFontFamily
+      ? undefined
+      : resolveRunFontFamily(run, options.defaultFontFamily, options.cellFontFamily),
     fontSize: scaledFontSize(run.fontSize ?? options.baseFontSize, multiplier),
     fontWeight: run.bold === undefined ? undefined : run.bold ? '700' : '400',
     fontStyle: run.italic === undefined ? undefined : run.italic ? 'italic' : 'normal',
@@ -124,6 +123,7 @@ function RichText({
   cellFontFamily,
   baseFontSize,
   baseTextColor,
+  omitFontFamily,
 }: {
   runs?: RichTextRun[]
   fallback: string
@@ -133,6 +133,7 @@ function RichText({
   cellFontFamily?: string
   baseFontSize?: number
   baseTextColor?: string
+  omitFontFamily?: boolean
 }) {
   const sourceRuns =
     runs && runs.length > 0
@@ -155,6 +156,7 @@ function RichText({
               cellFontFamily,
               baseFontSize,
               baseTextColor,
+              omitFontFamily,
             })}
           >
             {parts.map((part, partIndex) => (
@@ -246,6 +248,7 @@ function PagePreview({
           cellFontFamily={stepStyle?.fontFamily}
           baseFontSize={stepStyle?.fontSize}
           baseTextColor={stepStyle?.textColor}
+          omitFontFamily
         />
       </div>
       <div
@@ -340,6 +343,18 @@ function App() {
     )
   }
 
+  const handleExportPdf = () => {
+    if (!result?.spreads.length) {
+      setStatus('No print spreads available for PDF export.')
+      return
+    }
+
+    setStatus(
+      `Opening print dialog for ${result.spreads.length} sheets. Choose "Save as PDF" to download.`,
+    )
+    window.print()
+  }
+
   return (
     <main className="app">
       <section className="controls">
@@ -369,6 +384,13 @@ function App() {
           >
             Download JSON
           </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            disabled={!result?.spreads.length}
+          >
+            Export PDF
+          </button>
         </div>
 
         <label>
@@ -396,6 +418,9 @@ function App() {
         <p className="note">
           Apps Script route can also read the step cell background color, text color,
           and font family.
+        </p>
+        <p className="note">
+          PDF export uses the browser print dialog. Select <code>Save as PDF</code>.
         </p>
 
         <label>

@@ -2,6 +2,8 @@
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
   min-height: 100vh;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .controls {
@@ -78,6 +80,10 @@ pre {
 
 .sheetPreview {
   margin-top: 20px;
+}
+
+.sheetPreview:first-of-type {
+  margin-top: 0;
 }
 
 .sheetMeta {
@@ -243,5 +249,57 @@ pre {
 @media (max-width: 800px) {
   .previewArea {
     padding: 12px;
+  }
+}
+
+@page {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    margin: 0;
+    background: #ffffff;
+  }
+
+  .app {
+    display: block;
+    min-height: auto;
+  }
+
+  .controls,
+  .previewArea > h2,
+  .previewArea > .note,
+  .sheetMeta {
+    display: none;
+  }
+
+  .previewArea {
+    padding: 0;
+    background: #ffffff;
+  }
+
+  .sheetPreview {
+    margin: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .sheetPreview:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .sheetViewport {
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .sheetCanvas {
+    width: 297mm;
+    height: 210mm;
+    border: 0;
   }
 }

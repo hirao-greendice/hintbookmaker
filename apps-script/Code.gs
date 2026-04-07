@@ -60,33 +60,35 @@ function doGet() {
     }
 
     if (stepColumnIndex >= 0) {
-      row.stepStyle = {
+      row.stepStyle = extractCellStyle_({
         backgroundColor: backgrounds[rowIndex][stepColumnIndex],
         textColor: fontColors[rowIndex][stepColumnIndex],
         fontFamily: fontFamilies[rowIndex][stepColumnIndex],
         fontSize: fontSizes[rowIndex][stepColumnIndex],
-        bold: String(fontWeights[rowIndex][stepColumnIndex]).toLowerCase() === 'bold',
-        italic: String(fontStyles[rowIndex][stepColumnIndex]).toLowerCase() === 'italic',
-        underline: String(fontLines[rowIndex][stepColumnIndex]).toLowerCase() === 'underline',
-        strikethrough:
-          String(fontLines[rowIndex][stepColumnIndex]).toLowerCase() === 'line-through',
-      };
-      row.stepRuns = extractRuns(richTextValues[rowIndex][stepColumnIndex]);
+        fontWeight: fontWeights[rowIndex][stepColumnIndex],
+        fontStyle: fontStyles[rowIndex][stepColumnIndex],
+        fontLine: fontLines[rowIndex][stepColumnIndex],
+      });
+      row.stepRuns = extractRuns(
+        richTextValues[rowIndex][stepColumnIndex],
+        row.stepStyle
+      );
     }
 
     if (bodyColumnIndex >= 0) {
-      row.bodyStyle = {
+      row.bodyStyle = extractCellStyle_({
         backgroundColor: backgrounds[rowIndex][bodyColumnIndex],
         textColor: fontColors[rowIndex][bodyColumnIndex],
         fontFamily: fontFamilies[rowIndex][bodyColumnIndex],
         fontSize: fontSizes[rowIndex][bodyColumnIndex],
-        bold: String(fontWeights[rowIndex][bodyColumnIndex]).toLowerCase() === 'bold',
-        italic: String(fontStyles[rowIndex][bodyColumnIndex]).toLowerCase() === 'italic',
-        underline: String(fontLines[rowIndex][bodyColumnIndex]).toLowerCase() === 'underline',
-        strikethrough:
-          String(fontLines[rowIndex][bodyColumnIndex]).toLowerCase() === 'line-through',
-      };
-      row.bodyRuns = extractRuns(richTextValues[rowIndex][bodyColumnIndex]);
+        fontWeight: fontWeights[rowIndex][bodyColumnIndex],
+        fontStyle: fontStyles[rowIndex][bodyColumnIndex],
+        fontLine: fontLines[rowIndex][bodyColumnIndex],
+      });
+      row.bodyRuns = extractRuns(
+        richTextValues[rowIndex][bodyColumnIndex],
+        row.bodyStyle
+      );
     }
 
     rows.push(row);
@@ -100,7 +102,25 @@ function doGet() {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function extractRuns(richTextValue) {
+function extractCellStyle_(styleSeed) {
+  var fontLine = String(styleSeed.fontLine || '').toLowerCase();
+  return {
+    backgroundColor: styleSeed.backgroundColor || '',
+    textColor: styleSeed.textColor || '',
+    fontFamily: styleSeed.fontFamily || '',
+    fontSize: styleSeed.fontSize || '',
+    bold: String(styleSeed.fontWeight || '').toLowerCase() === 'bold',
+    italic: String(styleSeed.fontStyle || '').toLowerCase() === 'italic',
+    underline: fontLine === 'underline',
+    strikethrough: fontLine === 'line-through',
+  };
+}
+
+function normalizeRunValue_(value) {
+  return value === null || value === undefined ? '' : value;
+}
+
+function extractRuns(richTextValue, cellStyle) {
   if (!richTextValue) {
     return [];
   }
@@ -118,15 +138,45 @@ function extractRuns(richTextValue) {
       }
 
       var style = run.getTextStyle();
+      var textColor = style ? style.getForegroundColor() : '';
+      var fontFamily = style ? style.getFontFamily() : '';
+      var fontSize = style ? style.getFontSize() : '';
+      var bold = style ? style.isBold() : false;
+      var italic = style ? style.isItalic() : false;
+      var underline = style ? style.isUnderline() : false;
+      var strikethrough = style ? style.isStrikethrough() : false;
+
       return {
         text: text,
-        textColor: style ? style.getForegroundColor() : '',
-        fontFamily: style ? style.getFontFamily() : '',
-        fontSize: style ? style.getFontSize() : '',
-        bold: style ? style.isBold() : false,
-        italic: style ? style.isItalic() : false,
-        underline: style ? style.isUnderline() : false,
-        strikethrough: style ? style.isStrikethrough() : false,
+        textColor:
+          normalizeRunValue_(textColor) === normalizeRunValue_(cellStyle && cellStyle.textColor)
+            ? ''
+            : textColor,
+        fontFamily:
+          normalizeRunValue_(fontFamily) === normalizeRunValue_(cellStyle && cellStyle.fontFamily)
+            ? ''
+            : fontFamily,
+        fontSize:
+          normalizeRunValue_(fontSize) === normalizeRunValue_(cellStyle && cellStyle.fontSize)
+            ? ''
+            : fontSize,
+        bold:
+          normalizeRunValue_(bold) === normalizeRunValue_(cellStyle && cellStyle.bold)
+            ? null
+            : bold,
+        italic:
+          normalizeRunValue_(italic) === normalizeRunValue_(cellStyle && cellStyle.italic)
+            ? null
+            : italic,
+        underline:
+          normalizeRunValue_(underline) === normalizeRunValue_(cellStyle && cellStyle.underline)
+            ? null
+            : underline,
+        strikethrough:
+          normalizeRunValue_(strikethrough) ===
+          normalizeRunValue_(cellStyle && cellStyle.strikethrough)
+            ? null
+            : strikethrough,
       };
     })
     .filter(function(run) {
