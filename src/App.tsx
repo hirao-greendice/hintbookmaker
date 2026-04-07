@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import {
   buildGoogleSheetCsvUrl,
@@ -22,6 +22,8 @@ const BASE_FONT_SIZE = 10
 const STEP_FONT_SCALE = 4
 const BODY_FONT_SCALE = 2.5
 const INLINE_IMAGE_TOKEN = /\{\{(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?\}\}/gi
+const SHEET_SOURCE_STORAGE_KEY = 'hintbookmaker.sheetSource'
+const APPS_SCRIPT_SOURCE_STORAGE_KEY = 'hintbookmaker.appsScriptSource'
 
 type InlineImageOptions = {
   imageKey?: string
@@ -57,6 +59,15 @@ function downloadJson(result: FormatResult) {
   anchor.download = 'hintbook-formatted.json'
   anchor.click()
   URL.revokeObjectURL(url)
+}
+
+function readStoredValue(storageKey: string, fallback: string) {
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+
+  const storedValue = window.localStorage.getItem(storageKey)?.trim()
+  return storedValue || fallback
 }
 
 async function fetchSpreadsheetCsv(source: string) {
@@ -814,14 +825,26 @@ function PagePreview({
 }
 
 function App() {
-  const [sheetSource, setSheetSource] = useState(defaultSheetSource)
-  const [appsScriptSource, setAppsScriptSource] = useState(defaultAppsScriptSource)
+  const [sheetSource, setSheetSource] = useState(() =>
+    readStoredValue(SHEET_SOURCE_STORAGE_KEY, defaultSheetSource),
+  )
+  const [appsScriptSource, setAppsScriptSource] = useState(() =>
+    readStoredValue(APPS_SCRIPT_SOURCE_STORAGE_KEY, defaultAppsScriptSource),
+  )
   const [csvText, setCsvText] = useState(sampleCsv)
   const [result, setResult] = useState<FormatResult | null>(() =>
     formatHintBookFromCsv(sampleCsv),
   )
   const [status, setStatus] = useState('Ready.')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    window.localStorage.setItem(SHEET_SOURCE_STORAGE_KEY, sheetSource)
+  }, [sheetSource])
+
+  useEffect(() => {
+    window.localStorage.setItem(APPS_SCRIPT_SOURCE_STORAGE_KEY, appsScriptSource)
+  }, [appsScriptSource])
 
   const handleFormat = () => {
     try {
