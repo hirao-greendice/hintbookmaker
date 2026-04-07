@@ -1,5 +1,36 @@
 import { parseCsv } from './csv'
 
+export type StepStyle = {
+  backgroundColor?: string
+  textColor?: string
+  fontFamily?: string
+  fontSize?: number
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+}
+
+export type RichTextRun = {
+  text: string
+  textColor?: string
+  fontFamily?: string
+  fontSize?: number
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+}
+
+export type RenderSettings = {
+  stepFontFamily?: string
+  bodyFontFamily?: string
+  sideFontFamily?: string
+  pageNoFontFamily?: string
+  stepFontScale?: number
+  bodyFontScale?: number
+}
+
 export type SheetRecord = {
   rowNumber: number
   order: number
@@ -8,6 +39,10 @@ export type SheetRecord = {
   side: string
   body: string
   image: string
+  stepStyle?: StepStyle
+  bodyStyle?: StepStyle
+  stepRuns?: RichTextRun[]
+  bodyRuns?: RichTextRun[]
 }
 
 export type FormattedPage = SheetRecord
@@ -25,6 +60,31 @@ export type FormatResult = {
   pages: FormattedPage[]
   spreads: PrintSpread[]
   warnings: string[]
+  settings?: RenderSettings
+}
+
+type RowSeed = {
+  rowNumber: number
+  order: string
+  pageNo: string
+  step: string
+  side: string
+  body: string
+  image: string
+  stepStyle?: StepStyle
+  bodyStyle?: StepStyle
+  stepRuns?: RichTextRun[]
+  bodyRuns?: RichTextRun[]
+}
+
+type AppsScriptRow = Record<string, unknown> & {
+  stepStyle?: unknown
+  step_style?: unknown
+}
+
+type AppsScriptPayload = {
+  rows?: unknown
+  settings?: unknown
 }
 
 const fieldAliases = {
@@ -70,6 +130,136 @@ function parseOrder(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+function toStringValue(value: unknown) {
+  if (value === null || value === undefined) return ''
+  return String(value)
+}
+
+function sanitizeColor(value: unknown) {
+  const text = toStringValue(value).trim()
+  if (!text) return undefined
+  return text
+}
+
+function sanitizeFontFamily(value: unknown) {
+  const text = toStringValue(value).trim()
+  if (!text) return undefined
+  return text
+}
+
+function sanitizeFontSize(value: unknown) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined
+  return parsed
+}
+
+function sanitizeBoolean(value: unknown) {
+  if (value === true || value === false) return value
+  const text = toStringValue(value).trim().toLowerCase()
+  if (!text) return undefined
+  if (text === 'true') return true
+  if (text === 'false') return false
+  return undefined
+}
+
+function parseStepStyle(value: unknown): StepStyle | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  const backgroundColor =
+    sanitizeColor(record.backgroundColor) ??
+    sanitizeColor(record.background_color) ??
+    sanitizeColor(record.bgColor) ??
+    sanitizeColor(record.bg_color)
+
+  const textColor =
+    sanitizeColor(record.textColor) ??
+    sanitizeColor(record.text_color) ??
+    sanitizeColor(record.fontColor) ??
+    sanitizeColor(record.font_color)
+
+  const fontFamily =
+    sanitizeFontFamily(record.fontFamily) ??
+    sanitizeFontFamily(record.font_family)
+  const fontSize =
+    sanitizeFontSize(record.fontSize) ??
+    sanitizeFontSize(record.font_size)
+  const bold = sanitizeBoolean(record.bold)
+  const italic = sanitizeBoolean(record.italic)
+  const underline = sanitizeBoolean(record.underline)
+  const strikethrough =
+    sanitizeBoolean(record.strikethrough) ??
+    sanitizeBoolean(record.strikeThrough) ??
+    sanitizeBoolean(record.strike_through)
+
+  if (
+    !backgroundColor &&
+    !textColor &&
+    !fontFamily &&
+    !fontSize &&
+    bold === undefined &&
+    italic === undefined &&
+    underline === undefined &&
+    strikethrough === undefined
+  ) {
+    return undefined
+  }
+
+  return {
+    backgroundColor,
+    textColor,
+    fontFamily,
+    fontSize,
+    bold,
+    italic,
+    underline,
+    strikethrough,
+  }
+}
+
+function parseRichTextRuns(value: unknown): RichTextRun[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  const runs: RichTextRun[] = []
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+
+    const record = entry as Record<string, unknown>
+    const text = toStringValue(record.text)
+    if (text === '') {
+      continue
+    }
+
+    runs.push({
+      text,
+      textColor:
+        sanitizeColor(record.textColor) ?? sanitizeColor(record.text_color),
+      fontFamily:
+        sanitizeFontFamily(record.fontFamily) ??
+        sanitizeFontFamily(record.font_family),
+      fontSize:
+        sanitizeFontSize(record.fontSize) ??
+        sanitizeFontSize(record.font_size),
+      bold: sanitizeBoolean(record.bold),
+      italic: sanitizeBoolean(record.italic),
+      underline: sanitizeBoolean(record.underline),
+      strikethrough:
+        sanitizeBoolean(record.strikethrough) ??
+        sanitizeBoolean(record.strikeThrough) ??
+        sanitizeBoolean(record.strike_through),
+    })
+  }
+
+  return runs.length > 0 ? runs : undefined
+}
+
 function orderChunks<T>(items: T[], size: number) {
   const chunks: T[][] = []
 
@@ -78,6 +268,47 @@ function orderChunks<T>(items: T[], size: number) {
   }
 
   return chunks
+}
+
+function parseRenderSettings(value: unknown): RenderSettings | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const record = value as Record<string, unknown>
+  const settings: RenderSettings = {
+    stepFontFamily:
+      sanitizeFontFamily(record.stepFontFamily) ??
+      sanitizeFontFamily(record.step_font_family),
+    bodyFontFamily:
+      sanitizeFontFamily(record.bodyFontFamily) ??
+      sanitizeFontFamily(record.body_font_family),
+    sideFontFamily:
+      sanitizeFontFamily(record.sideFontFamily) ??
+      sanitizeFontFamily(record.side_font_family),
+    pageNoFontFamily:
+      sanitizeFontFamily(record.pageNoFontFamily) ??
+      sanitizeFontFamily(record.page_no_font_family),
+    stepFontScale:
+      sanitizeFontSize(record.stepFontScale) ??
+      sanitizeFontSize(record.step_font_scale),
+    bodyFontScale:
+      sanitizeFontSize(record.bodyFontScale) ??
+      sanitizeFontSize(record.body_font_scale),
+  }
+
+  if (
+    !settings.stepFontFamily &&
+    !settings.bodyFontFamily &&
+    !settings.sideFontFamily &&
+    !settings.pageNoFontFamily &&
+    !settings.stepFontScale &&
+    !settings.bodyFontScale
+  ) {
+    return undefined
+  }
+
+  return settings
 }
 
 function buildPrintSpreads(pages: FormattedPage[]): PrintSpread[] {
@@ -105,6 +336,77 @@ function buildPrintSpreads(pages: FormattedPage[]): PrintSpread[] {
       },
     ]
   })
+}
+
+function buildResultFromSeeds(
+  rawRows: string[][],
+  seeds: RowSeed[],
+  settings?: RenderSettings,
+): FormatResult {
+  const warnings: string[] = []
+  const orderMap = new Map<number, SheetRecord>()
+
+  for (const seed of seeds) {
+    const hasAnyValue = [
+      seed.order,
+      seed.pageNo,
+      seed.step,
+      seed.side,
+      seed.body,
+      seed.image,
+    ].some((value) => value.trim() !== '')
+
+    if (!hasAnyValue) {
+      continue
+    }
+
+    const order = parseOrder(seed.order)
+    if (order === null) {
+      continue
+    }
+
+    if (orderMap.has(order)) {
+      warnings.push(`Duplicate order ${order}: row ${seed.rowNumber} was ignored.`)
+      continue
+    }
+
+    orderMap.set(order, {
+      rowNumber: seed.rowNumber,
+      order,
+      pageNo: seed.pageNo,
+      step: seed.step,
+      side: seed.side,
+      body: seed.body,
+      image: seed.image,
+      stepStyle: seed.stepStyle,
+      bodyStyle: seed.bodyStyle,
+      stepRuns: seed.stepRuns,
+      bodyRuns: seed.bodyRuns,
+    })
+  }
+
+  const records = Array.from(orderMap.values()).sort(
+    (first, second) => first.order - second.order,
+  )
+
+  for (let index = 0; index < records.length; index += 1) {
+    const expectedOrder = index + 1
+    if (records[index]?.order !== expectedOrder) {
+      warnings.push(`Missing order ${expectedOrder}.`)
+    }
+  }
+
+  const pages = records
+  const spreads = buildPrintSpreads(pages)
+
+  return {
+    rawRows,
+    records,
+    pages,
+    spreads,
+    warnings,
+    settings,
+  }
 }
 
 export function buildGoogleSheetCsvUrl(input: string) {
@@ -152,17 +454,13 @@ export function formatHintBookFromCsv(csvText: string): FormatResult {
 
   const [headerRow, ...dataRows] = rawRows
   const fieldMap = headerRow.map((header) => aliasToField(header))
-  const warnings: string[] = []
+  const missing = requiredFields.filter((field) => !fieldMap.includes(field))
 
-  for (const field of requiredFields) {
-    if (!fieldMap.includes(field)) {
-      warnings.push(`Missing column: ${field}`)
-    }
+  if (missing.length > 0) {
+    throw new Error(`Missing columns: ${missing.join(', ')}`)
   }
 
-  const orderMap = new Map<number, SheetRecord>()
-
-  dataRows.forEach((row, index) => {
+  const seeds = dataRows.map((row, index) => {
     const values = fieldMap.reduce<Record<string, string>>(
       (accumulator, field, headerIndex) => {
         if (!field) return accumulator
@@ -172,53 +470,63 @@ export function formatHintBookFromCsv(csvText: string): FormatResult {
       {},
     )
 
-    const hasAnyValue = Object.values(values).some(Boolean)
-    if (!hasAnyValue) {
-      return
-    }
-
-    const order = parseOrder(values.order ?? '')
-    if (order === null) {
-      return
-    }
-
-    if (orderMap.has(order)) {
-      warnings.push(`Duplicate order ${order}: row ${index + 2} was ignored.`)
-      return
-    }
-
-    orderMap.set(order, {
+    return {
       rowNumber: index + 2,
-      order,
+      order: values.order ?? '',
       pageNo: values.pageNo ?? '',
       step: values.step ?? '',
       side: values.side ?? '',
       body: values.body ?? '',
       image: values.image ?? '',
-    })
+      stepStyle: undefined,
+      bodyStyle: undefined,
+      stepRuns: undefined,
+      bodyRuns: undefined,
+    } satisfies RowSeed
   })
 
-  const records = Array.from(orderMap.values()).sort(
-    (first, second) => first.order - second.order,
-  )
+  return buildResultFromSeeds(rawRows, seeds)
+}
 
-  for (let index = 0; index < records.length; index += 1) {
-    const expectedOrder = index + 1
-    if (records[index]?.order !== expectedOrder) {
-      warnings.push(`Missing order ${expectedOrder}.`)
+export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Apps Script response is not an object.')
+  }
+
+  const container = payload as AppsScriptPayload
+  const rows = Array.isArray(container.rows) ? container.rows : null
+  if (!rows) {
+    throw new Error('Apps Script response must have a rows array.')
+  }
+  const settings = parseRenderSettings(container.settings)
+
+  const seeds = rows.map((entry, index) => {
+    const source = entry && typeof entry === 'object' ? (entry as AppsScriptRow) : {}
+    const values: Partial<Record<keyof typeof fieldAliases, string>> = {}
+
+    for (const [key, value] of Object.entries(source)) {
+      const field = aliasToField(key)
+      if (field) {
+        values[field] = toStringValue(value).trim()
+      }
     }
-  }
 
-  const pages = records
-  const spreads = buildPrintSpreads(pages)
+    return {
+      rowNumber: index + 2,
+      order: values.order ?? '',
+      pageNo: values.pageNo ?? '',
+      step: values.step ?? '',
+      side: values.side ?? '',
+      body: values.body ?? '',
+      image: values.image ?? '',
+      stepStyle: parseStepStyle(source.stepStyle ?? source.step_style),
+      bodyStyle: parseStepStyle(source.bodyStyle ?? source.body_style),
+      stepRuns: parseRichTextRuns(source.stepRuns ?? source.step_runs),
+      bodyRuns: parseRichTextRuns(source.bodyRuns ?? source.body_runs),
+    } satisfies RowSeed
+  })
 
-  return {
-    rawRows,
-    records,
-    pages,
-    spreads,
-    warnings,
-  }
+  return buildResultFromSeeds([], seeds, settings)
 }
 
 export const defaultSheetSource =
@@ -226,13 +534,79 @@ export const defaultSheetSource =
 
 export const sampleCsv = `order,page_no,step,side,body,image
 1,1,全体目次,1st,"1st STEP
-赤のページへ", 
+赤のページへ",
 2,2,1st-1,1st,"謎ID:001のヒント
-イラストのルールを見るページです。", 
+イラストのルールを見るページです。",
 3,3,1st-1,2nd,"謎ID:002のヒント
-補足のテキストが入ります。", 
+補足のテキストが入ります。",
 4,4,1st-1,1st,"謎ID:003のヒント
 ここも仮の本文です。",`
+
+export const sampleAppsScriptResponse = {
+  settings: {
+    step_font_family: 'MS Mincho',
+    body_font_family: 'Yu Gothic',
+    side_font_family: 'MS Mincho',
+    page_no_font_family: 'Arial',
+    step_font_scale: 4,
+    body_font_scale: 2.5,
+  },
+  rows: [
+    {
+      order: 1,
+      page_no: '1',
+      step: '全体目次',
+      side: '1st',
+      body: '1st STEP\n赤のページへ',
+      image: '',
+      stepStyle: {
+        backgroundColor: '#5c5c5c',
+        textColor: '#ffffff',
+        fontFamily: 'Noto Serif JP',
+      },
+      stepRuns: [
+        {
+          text: '全体目次',
+          textColor: '#ffffff',
+          fontFamily: 'Noto Serif JP',
+          bold: true,
+        },
+      ],
+      bodyRuns: [
+        {
+          text: '1st STEP\n',
+          bold: true,
+        },
+        {
+          text: '赤のページへ',
+        },
+      ],
+    },
+    {
+      order: 2,
+      page_no: '2',
+      step: '1st-1',
+      side: '1st',
+      body: '謎ID:001のヒント\nイラストのルールを見るページです。',
+      image: '',
+      stepStyle: {
+        backgroundColor: '#d94b67',
+        textColor: '#ffffff',
+        fontFamily: 'Noto Serif JP',
+      },
+      bodyRuns: [
+        {
+          text: '謎ID:001',
+          bold: true,
+          textColor: '#d94b67',
+        },
+        {
+          text: 'のヒント\nイラストのルールを見るページです。',
+        },
+      ],
+    },
+  ],
+}
 
 export const sheetColumnGuide = [
   ['order', 'Required. Real sequence number used for print layout. Blank rows are ignored.'],

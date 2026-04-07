@@ -131,6 +131,10 @@ pre {
   box-sizing: border-box;
 }
 
+.pageStepText {
+  white-space: pre-wrap;
+}
+
 .pageContent {
   position: absolute;
   inset: 0;
@@ -172,6 +176,11 @@ pre {
   padding: 20px 18px;
   overflow: hidden;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .pageBody-left {
@@ -194,8 +203,15 @@ pre {
   overflow: hidden;
 }
 
+.pageBodyText {
+  white-space: pre-wrap;
+  font-size: 16px;
+  line-height: 1.55;
+  overflow: hidden;
+  width: 100%;
+}
+
 .pageImagePlaceholder {
-  margin-top: 12px;
   border-top: 1px solid #d0d0d0;
   padding-top: 12px;
   color: #444;

@@ -3,12 +3,23 @@ import './App.css'
 import {
   buildGoogleSheetCsvUrl,
   defaultSheetSource,
+  formatHintBookFromAppsScript,
   formatHintBookFromCsv,
+  sampleAppsScriptResponse,
   sampleCsv,
   sheetColumnGuide,
   type FormatResult,
   type FormattedPage,
+  type RenderSettings,
+  type RichTextRun,
 } from './lib/hintbook'
+
+const defaultAppsScriptSource =
+  'https://script.google.com/macros/s/AKfycbxujRiMhpqRckPyMcnWahn4eJ6cvl3SVG5rGGao7_55iWpjKq5duNBHIeVtH4MyzifmFw/exec'
+
+const BASE_FONT_SIZE = 10
+const STEP_FONT_SCALE = 4
+const BODY_FONT_SCALE = 2.5
 
 function downloadJson(result: FormatResult) {
   const blob = new Blob([JSON.stringify(result, null, 2)], {
@@ -33,13 +44,185 @@ async function fetchSpreadsheetCsv(source: string) {
   return response.text()
 }
 
+async function fetchAppsScriptJson(source: string) {
+  const response = await fetch(source)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Apps Script JSON: ${response.status}`)
+  }
+
+  return response.json()
+}
+
+function scaledFontSize(size: number | undefined, multiplier: number) {
+  const baseSize = size ?? BASE_FONT_SIZE
+  return `${baseSize * multiplier}px`
+}
+
+function resolveRunFontFamily(
+  run: RichTextRun,
+  defaultFontFamily?: string,
+  cellFontFamily?: string,
+) {
+  if (defaultFontFamily?.trim()) {
+    return defaultFontFamily
+  }
+
+  return run.fontFamily?.trim() ?? cellFontFamily?.trim()
+}
+
+function resolveTextDecoration(
+  underline?: boolean,
+  strikethrough?: boolean,
+) {
+  const values = [
+    underline ? 'underline' : '',
+    strikethrough ? 'line-through' : '',
+  ].filter(Boolean)
+
+  if (values.length > 0) {
+    return values.join(' ')
+  }
+
+  if (underline !== undefined || strikethrough !== undefined) {
+    return 'none'
+  }
+
+  return undefined
+}
+
+function runStyle(
+  run: RichTextRun,
+  multiplier: number,
+  options: {
+    defaultFontFamily?: string
+    cellFontFamily?: string
+    baseFontSize?: number
+    baseTextColor?: string
+  },
+) {
+  return {
+    color: run.textColor ?? options.baseTextColor,
+    fontFamily: resolveRunFontFamily(
+      run,
+      options.defaultFontFamily,
+      options.cellFontFamily,
+    ),
+    fontSize: scaledFontSize(run.fontSize ?? options.baseFontSize, multiplier),
+    fontWeight: run.bold === undefined ? undefined : run.bold ? '700' : '400',
+    fontStyle: run.italic === undefined ? undefined : run.italic ? 'italic' : 'normal',
+    textDecoration: resolveTextDecoration(run.underline, run.strikethrough),
+  }
+}
+
+function RichText({
+  runs,
+  fallback,
+  className,
+  multiplier,
+  defaultFontFamily,
+  cellFontFamily,
+  baseFontSize,
+  baseTextColor,
+}: {
+  runs?: RichTextRun[]
+  fallback: string
+  className: string
+  multiplier: number
+  defaultFontFamily?: string
+  cellFontFamily?: string
+  baseFontSize?: number
+  baseTextColor?: string
+}) {
+  const sourceRuns =
+    runs && runs.length > 0
+      ? runs
+      : [
+          {
+            text: fallback,
+          },
+        ]
+
+  return (
+    <div className={className}>
+      {sourceRuns.map((run, runIndex) => {
+        const parts = run.text.split('\n')
+        return (
+          <span
+            key={`${runIndex}-${run.text}`}
+            style={runStyle(run, multiplier, {
+              defaultFontFamily,
+              cellFontFamily,
+              baseFontSize,
+              baseTextColor,
+            })}
+          >
+            {parts.map((part, partIndex) => (
+              <span key={`${runIndex}-${partIndex}`}>
+                {part}
+                {partIndex < parts.length - 1 ? <br /> : null}
+              </span>
+            ))}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 function PagePreview({
   page,
   position,
+  settings,
 }: {
   page: FormattedPage | null
   position: 'left' | 'right'
+  settings?: RenderSettings
 }) {
+  const stepStyle = page?.stepStyle
+  const bodyStyle = page?.bodyStyle
+  const stepMultiplier = settings?.stepFontScale ?? STEP_FONT_SCALE
+  const bodyMultiplier = settings?.bodyFontScale ?? BODY_FONT_SCALE
+  const stepFontFamily = settings?.stepFontFamily ?? stepStyle?.fontFamily
+  const bodyFontFamily = settings?.bodyFontFamily ?? bodyStyle?.fontFamily
+  const sideFontFamily = settings?.sideFontFamily
+  const pageNoFontFamily = settings?.pageNoFontFamily
+  const stepBlockStyle = {
+    backgroundColor: stepStyle?.backgroundColor,
+    color: stepStyle?.textColor,
+    fontFamily: stepFontFamily,
+    fontSize: scaledFontSize(stepStyle?.fontSize, stepMultiplier),
+    fontWeight: stepStyle?.bold ? '700' : undefined,
+    fontStyle: stepStyle?.italic ? 'italic' : undefined,
+    textDecoration: [
+      stepStyle?.underline ? 'underline' : '',
+      stepStyle?.strikethrough ? 'line-through' : '',
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined,
+  }
+  const bodyBlockStyle = {
+    borderColor: stepStyle?.backgroundColor,
+    backgroundColor: bodyStyle?.backgroundColor,
+    color: bodyStyle?.textColor,
+    fontFamily: bodyFontFamily,
+    fontSize: scaledFontSize(bodyStyle?.fontSize, bodyMultiplier),
+    fontWeight: bodyStyle?.bold ? '700' : undefined,
+    fontStyle: bodyStyle?.italic ? 'italic' : undefined,
+    textDecoration: [
+      bodyStyle?.underline ? 'underline' : '',
+      bodyStyle?.strikethrough ? 'line-through' : '',
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined,
+  }
+  const sideLabelStyle = {
+    fontFamily: sideFontFamily,
+  }
+  const pageNumberStyle = {
+    fontFamily: pageNoFontFamily,
+  }
+
   if (!page) {
     return (
       <article className={`pagePreview pagePreview-${position}`}>
@@ -53,23 +236,49 @@ function PagePreview({
 
   return (
     <article className={`pagePreview pagePreview-${position}`}>
-      <div className="pageStep">{page.step || 'step'}</div>
-      <div className={`pageSideLabel pageSideLabel-${position}`}>
+      <div className="pageStep" style={stepBlockStyle}>
+        <RichText
+          runs={page.stepRuns}
+          fallback={page.step || 'step'}
+          className="pageStepText"
+          multiplier={stepMultiplier}
+          defaultFontFamily={settings?.stepFontFamily}
+          cellFontFamily={stepStyle?.fontFamily}
+          baseFontSize={stepStyle?.fontSize}
+          baseTextColor={stepStyle?.textColor}
+        />
+      </div>
+      <div
+        className={`pageSideLabel pageSideLabel-${position}`}
+        style={sideLabelStyle}
+      >
         {page.side || 'side'}
       </div>
-      <div className={`pageBody pageBody-${position}`}>
-        <pre>{page.body || 'body'}</pre>
+      <div className={`pageBody pageBody-${position}`} style={bodyBlockStyle}>
+        <RichText
+          runs={page.bodyRuns}
+          fallback={page.body || 'body'}
+          className="pageBodyText"
+          multiplier={bodyMultiplier}
+          defaultFontFamily={settings?.bodyFontFamily}
+          cellFontFamily={bodyStyle?.fontFamily}
+          baseFontSize={bodyStyle?.fontSize}
+          baseTextColor={bodyStyle?.textColor}
+        />
         {page.image ? (
           <div className="pageImagePlaceholder">image: {page.image}</div>
         ) : null}
       </div>
-      <div className="pageNumber">{page.pageNo || '-'}</div>
+      <div className="pageNumber" style={pageNumberStyle}>
+        {page.pageNo || '-'}
+      </div>
     </article>
   )
 }
 
 function App() {
   const [sheetSource, setSheetSource] = useState(defaultSheetSource)
+  const [appsScriptSource, setAppsScriptSource] = useState(defaultAppsScriptSource)
   const [csvText, setCsvText] = useState(sampleCsv)
   const [result, setResult] = useState<FormatResult | null>(() =>
     formatHintBookFromCsv(sampleCsv),
@@ -107,6 +316,30 @@ function App() {
     }
   }
 
+  const handleLoadAppsScript = async () => {
+    setLoading(true)
+    try {
+      const payload = await fetchAppsScriptJson(appsScriptSource)
+      const next = formatHintBookFromAppsScript(payload)
+      setResult(next)
+      setStatus(
+        `Loaded Apps Script data and formatted ${next.pages.length} pages into ${next.spreads.length} print spreads.`,
+      )
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Apps Script load failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUseAppsScriptSample = () => {
+    const next = formatHintBookFromAppsScript(sampleAppsScriptResponse)
+    setResult(next)
+    setStatus(
+      `Loaded sample Apps Script data and formatted ${next.pages.length} pages into ${next.spreads.length} print spreads.`,
+    )
+  }
+
   return (
     <main className="app">
       <section className="controls">
@@ -138,8 +371,31 @@ function App() {
           </button>
         </div>
 
+        <label>
+          Apps Script Web App URL
+          <input
+            type="text"
+            value={appsScriptSource}
+            onChange={(event) => setAppsScriptSource(event.target.value)}
+            placeholder="https://script.google.com/macros/s/.../exec"
+          />
+        </label>
+
+        <div className="buttonRow">
+          <button type="button" onClick={handleLoadAppsScript} disabled={loading}>
+            {loading ? 'Loading...' : 'Load Apps Script'}
+          </button>
+          <button type="button" onClick={handleUseAppsScriptSample}>
+            Use Apps Script sample
+          </button>
+        </div>
+
         <p className="note">
-          Expected columns: <code>order, page_no, step, side, body, image</code>
+          CSV columns: <code>order, page_no, step, side, body, image</code>
+        </p>
+        <p className="note">
+          Apps Script route can also read the step cell background color, text color,
+          and font family.
         </p>
 
         <label>
@@ -205,8 +461,16 @@ function App() {
             </div>
             <div className="sheetViewport">
               <div className="sheetCanvas">
-                <PagePreview page={spread.leftPage} position="left" />
-                <PagePreview page={spread.rightPage} position="right" />
+                <PagePreview
+                  page={spread.leftPage}
+                  position="left"
+                  settings={result?.settings}
+                />
+                <PagePreview
+                  page={spread.rightPage}
+                  position="right"
+                  settings={result?.settings}
+                />
               </div>
             </div>
           </section>
