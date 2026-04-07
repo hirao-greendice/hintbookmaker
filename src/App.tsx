@@ -228,10 +228,10 @@ function PagePreview({
   if (!page) {
     return (
       <article className={`pagePreview pagePreview-${position}`}>
-        <div className="pageStep">empty</div>
-        <div className={`pageSideLabel pageSideLabel-${position}`}>side</div>
-        <div className={`pageBody pageBody-${position}`}>No page assigned.</div>
-        <div className="pageNumber">-</div>
+        <div className="pageStep" />
+        <div className={`pageSideLabel pageSideLabel-${position}`} />
+        <div className={`pageBody pageBody-${position}`} />
+        <div className="pageNumber" />
       </article>
     )
   }
@@ -241,7 +241,7 @@ function PagePreview({
       <div className="pageStep" style={stepBlockStyle}>
         <RichText
           runs={page.stepRuns}
-          fallback={page.step || 'step'}
+          fallback={page.step || ''}
           className="pageStepText"
           multiplier={stepMultiplier}
           defaultFontFamily={settings?.stepFontFamily}
@@ -255,12 +255,12 @@ function PagePreview({
         className={`pageSideLabel pageSideLabel-${position}`}
         style={sideLabelStyle}
       >
-        {page.side || 'side'}
+        {page.side || ''}
       </div>
       <div className={`pageBody pageBody-${position}`} style={bodyBlockStyle}>
         <RichText
           runs={page.bodyRuns}
-          fallback={page.body || 'body'}
+          fallback={page.body || ''}
           className="pageBodyText"
           multiplier={bodyMultiplier}
           defaultFontFamily={settings?.bodyFontFamily}
@@ -273,7 +273,7 @@ function PagePreview({
         ) : null}
       </div>
       <div className="pageNumber" style={pageNumberStyle}>
-        {page.pageNo || '-'}
+        {page.pageNo || ''}
       </div>
     </article>
   )
