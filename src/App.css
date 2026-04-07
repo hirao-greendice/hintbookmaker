@@ -87,69 +87,101 @@ pre {
   font-size: 14px;
 }
 
+.sheetViewport {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+}
+
 .sheetCanvas {
-  width: min(100%, 1100px);
-  aspect-ratio: 297 / 210;
+  width: 1122px;
+  height: 794px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  padding: 16px;
+  gap: 4px;
+  padding: 0px;
   background: #ffffff;
   border: 1px solid #cfcfcf;
+  box-sizing: border-box;
 }
 
 .pagePreview {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  position: relative;
   border: 1px solid #cfcfcf;
-  min-width: 0;
+  height: 100%;
+  background: #ffffff;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .pageStep {
-  padding: 10px 12px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  padding: 8px 12px 10px;
   background: #d94b67;
   color: #ffffff;
   font-weight: 700;
   text-align: center;
+  font-size: 40px;
+  line-height: 1;
+  box-sizing: border-box;
 }
 
 .pageContent {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  min-height: 0;
-}
-
-.pagePreview-left .pageContent {
-  grid-template-columns: minmax(0, 1fr) 48px;
+  position: absolute;
+  inset: 0;
 }
 
 .pageSideLabel {
-  border-right: 1px solid #cfcfcf;
+  position: absolute;
+  top: 60px;
+  bottom: 0;
+  width: 40px;
   background: #efefef;
   padding: 12px 6px;
   text-align: center;
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-weight: 700;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
-.pagePreview-left .pageSideLabel {
-  grid-column: 2;
-  border-right: 0;
+.pageSideLabel-left {
+  right: 0;
   border-left: 1px solid #cfcfcf;
-  writing-mode: vertical-lr;
 }
 
-.pagePreview-left .pageBody {
-  grid-column: 1;
+.pageSideLabel-right {
+  left: 0;
+  border-right: 1px solid #cfcfcf;
 }
 
 .pageBody {
-  margin: 12px;
+  position: absolute;
+  top: 80px;
+  bottom: 34px;
   border: 2px solid #d94b67;
-  padding: 12px;
-  min-height: 0;
-  overflow: auto;
+  padding: 20px 18px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.pageBody-left {
+  left: 50px;
+  right: 60px;
+}
+
+.pageBody-right {
+  left: 60px;
+  right: 50px;
 }
 
 .pageBody pre {
@@ -157,6 +189,9 @@ pre {
   padding: 0;
   background: transparent;
   white-space: pre-wrap;
+  font-size: 16px;
+  line-height: 1.55;
+  overflow: hidden;
 }
 
 .pageImagePlaceholder {
@@ -167,9 +202,15 @@ pre {
 }
 
 .pageNumber {
-  padding: 8px 12px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  padding: 4px 12px 6px;
   text-align: center;
   font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
 }
 
 @media (max-width: 1100px) {
@@ -184,8 +225,7 @@ pre {
 }
 
 @media (max-width: 800px) {
-  .sheetCanvas {
-    grid-template-columns: 1fr;
-    aspect-ratio: auto;
+  .previewArea {
+    padding: 12px;
   }
 }

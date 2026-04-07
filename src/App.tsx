@@ -44,10 +44,8 @@ function PagePreview({
     return (
       <article className={`pagePreview pagePreview-${position}`}>
         <div className="pageStep">empty</div>
-        <div className="pageContent">
-          <div className="pageSideLabel">side</div>
-          <div className="pageBody">No page assigned.</div>
-        </div>
+        <div className={`pageSideLabel pageSideLabel-${position}`}>side</div>
+        <div className={`pageBody pageBody-${position}`}>No page assigned.</div>
         <div className="pageNumber">-</div>
       </article>
     )
@@ -56,14 +54,14 @@ function PagePreview({
   return (
     <article className={`pagePreview pagePreview-${position}`}>
       <div className="pageStep">{page.step || 'step'}</div>
-      <div className="pageContent">
-        <div className="pageSideLabel">{page.side || 'side'}</div>
-        <div className="pageBody">
-          <pre>{page.body || 'body'}</pre>
-          {page.image ? (
-            <div className="pageImagePlaceholder">image: {page.image}</div>
-          ) : null}
-        </div>
+      <div className={`pageSideLabel pageSideLabel-${position}`}>
+        {page.side || 'side'}
+      </div>
+      <div className={`pageBody pageBody-${position}`}>
+        <pre>{page.body || 'body'}</pre>
+        {page.image ? (
+          <div className="pageImagePlaceholder">image: {page.image}</div>
+        ) : null}
       </div>
       <div className="pageNumber">{page.pageNo || '-'}</div>
     </article>
@@ -205,9 +203,11 @@ function App() {
               <span>sheet {spread.sheetNumber}</span>
               <span>spread group {spread.spreadNumber}</span>
             </div>
-            <div className="sheetCanvas">
-              <PagePreview page={spread.leftPage} position="left" />
-              <PagePreview page={spread.rightPage} position="right" />
+            <div className="sheetViewport">
+              <div className="sheetCanvas">
+                <PagePreview page={spread.leftPage} position="left" />
+                <PagePreview page={spread.rightPage} position="right" />
+              </div>
             </div>
           </section>
         )) ?? null}
