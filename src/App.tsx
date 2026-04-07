@@ -54,6 +54,56 @@ async function fetchAppsScriptJson(source: string) {
   return response.json()
 }
 
+function extractGoogleDriveFileId(source: string) {
+  const trimmed = source.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmed) && !trimmed.includes('/')) {
+    return trimmed
+  }
+
+  try {
+    const url = new URL(trimmed)
+    const host = url.hostname.replace(/^www\./, '')
+
+    if (host === 'drive.google.com') {
+      const id = url.searchParams.get('id')
+      if (id) {
+        return id
+      }
+
+      const fileMatch = url.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
+      if (fileMatch) {
+        return fileMatch[1]
+      }
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+function resolveImageSource(source: string) {
+  const trimmed = source.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const driveFileId = extractGoogleDriveFileId(trimmed)
+  if (driveFileId) {
+    return `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w1600`
+  }
+
+  try {
+    return new URL(trimmed).toString()
+  } catch {
+    return null
+  }
+}
+
 function scaledFontSize(size: number | undefined, multiplier: number) {
   const baseSize = size ?? BASE_FONT_SIZE
   return `${baseSize * multiplier}px`
@@ -172,6 +222,27 @@ function RichText({
   )
 }
 
+function PageImage({ source }: { source: string }) {
+  const [failed, setFailed] = useState(false)
+  const resolvedSource = resolveImageSource(source)
+
+  if (!resolvedSource || failed) {
+    return null
+  }
+
+  return (
+    <div className="pageImageFrame">
+      <img
+        className="pageImage"
+        src={resolvedSource}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  )
+}
+
 function PagePreview({
   page,
   position,
@@ -269,7 +340,7 @@ function PagePreview({
           baseTextColor={bodyStyle?.textColor}
         />
         {page.image ? (
-          <div className="pageImagePlaceholder">image: {page.image}</div>
+          <PageImage source={page.image} />
         ) : null}
       </div>
       <div className="pageNumber" style={pageNumberStyle}>
@@ -418,6 +489,9 @@ function App() {
         <p className="note">
           Apps Script route can also read the step cell background color, text color,
           and font family.
+        </p>
+        <p className="note">
+          <code>image</code> accepts Google Drive share links and regular image URLs.
         </p>
         <p className="note">
           PDF export uses the browser print dialog. Select <code>Save as PDF</code>.

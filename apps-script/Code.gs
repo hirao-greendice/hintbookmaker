@@ -37,6 +37,7 @@ function doGet() {
 
   var stepColumnIndex = normalizedHeaders.indexOf('step');
   var bodyColumnIndex = normalizedHeaders.indexOf('body');
+  var imageColumnIndex = normalizedHeaders.indexOf('image');
   var rows = [];
 
   for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
@@ -91,6 +92,13 @@ function doGet() {
       );
     }
 
+    if (imageColumnIndex >= 0) {
+      var imageLink = extractLinkUrl_(richTextValues[rowIndex][imageColumnIndex]);
+      if (imageLink) {
+        row[headers[imageColumnIndex]] = imageLink;
+      }
+    }
+
     rows.push(row);
   }
 
@@ -118,6 +126,31 @@ function extractCellStyle_(styleSeed) {
 
 function normalizeRunValue_(value) {
   return value === null || value === undefined ? '' : value;
+}
+
+function extractLinkUrl_(richTextValue) {
+  if (!richTextValue) {
+    return '';
+  }
+
+  var directLink = richTextValue.getLinkUrl();
+  if (directLink) {
+    return directLink;
+  }
+
+  var runs = richTextValue.getRuns();
+  if (!runs || runs.length === 0) {
+    return '';
+  }
+
+  for (var index = 0; index < runs.length; index += 1) {
+    var link = runs[index].getLinkUrl();
+    if (link) {
+      return link;
+    }
+  }
+
+  return '';
 }
 
 function extractRuns(richTextValue, cellStyle) {
