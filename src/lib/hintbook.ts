@@ -31,6 +31,8 @@ export type RenderSettings = {
   bodyFontScale?: number
 }
 
+export type ImageSources = Record<string, string>
+
 export type SheetRecord = {
   rowNumber: number
   order: number
@@ -39,6 +41,12 @@ export type SheetRecord = {
   side: string
   body: string
   image: string
+  imagePosition?: string
+  imageWidth?: string
+  imageHeight?: string
+  imageAlign?: string
+  imageFit?: string
+  imageSources?: ImageSources
   stepStyle?: StepStyle
   bodyStyle?: StepStyle
   stepRuns?: RichTextRun[]
@@ -71,6 +79,12 @@ type RowSeed = {
   side: string
   body: string
   image: string
+  imagePosition?: string
+  imageWidth?: string
+  imageHeight?: string
+  imageAlign?: string
+  imageFit?: string
+  imageSources?: ImageSources
   stepStyle?: StepStyle
   bodyStyle?: StepStyle
   stepRuns?: RichTextRun[]
@@ -94,6 +108,11 @@ const fieldAliases = {
   side: ['side', 'label', 'side_label'],
   body: ['body', 'text', 'content'],
   image: ['image', 'image_key', 'image_url'],
+  imagePosition: ['image_position', 'image_pos', 'image_place'],
+  imageWidth: ['image_width', 'image_w'],
+  imageHeight: ['image_height', 'image_h'],
+  imageAlign: ['image_align', 'image_alignment'],
+  imageFit: ['image_fit', 'image_object_fit'],
 } as const
 
 const requiredFields: Array<keyof typeof fieldAliases> = [
@@ -125,9 +144,41 @@ function aliasToField(header: string) {
   return match?.[0] ?? null
 }
 
+function getImageFieldIndex(header: string) {
+  const normalized = normalizeHeader(header)
+  if (normalized === 'image') {
+    return '1'
+  }
+
+  const match = normalized.match(/^image_?(\d+)$/)
+  return match?.[1] ?? null
+}
+
 function parseOrder(value: string) {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function collectImageSources(
+  entries: Array<[string, unknown]>,
+): ImageSources | undefined {
+  const imageSources: ImageSources = {}
+
+  for (const [key, value] of entries) {
+    const index = getImageFieldIndex(key)
+    if (!index) {
+      continue
+    }
+
+    const text = toStringValue(value).trim()
+    if (!text) {
+      continue
+    }
+
+    imageSources[index] = text
+  }
+
+  return Object.keys(imageSources).length > 0 ? imageSources : undefined
 }
 
 function toStringValue(value: unknown) {
@@ -378,6 +429,12 @@ function buildResultFromSeeds(
       side: seed.side,
       body: seed.body,
       image: seed.image,
+      imagePosition: seed.imagePosition,
+      imageWidth: seed.imageWidth,
+      imageHeight: seed.imageHeight,
+      imageAlign: seed.imageAlign,
+      imageFit: seed.imageFit,
+      imageSources: seed.imageSources,
       stepStyle: seed.stepStyle,
       bodyStyle: seed.bodyStyle,
       stepRuns: seed.stepRuns,
@@ -461,6 +518,10 @@ export function formatHintBookFromCsv(csvText: string): FormatResult {
   }
 
   const seeds = dataRows.map((row, index) => {
+    const rawEntries = headerRow.map((header, headerIndex) => [
+      header,
+      row[headerIndex] ?? '',
+    ]) as Array<[string, unknown]>
     const values = fieldMap.reduce<Record<string, string>>(
       (accumulator, field, headerIndex) => {
         if (!field) return accumulator
@@ -478,6 +539,12 @@ export function formatHintBookFromCsv(csvText: string): FormatResult {
       side: values.side ?? '',
       body: values.body ?? '',
       image: values.image ?? '',
+      imagePosition: values.imagePosition ?? '',
+      imageWidth: values.imageWidth ?? '',
+      imageHeight: values.imageHeight ?? '',
+      imageAlign: values.imageAlign ?? '',
+      imageFit: values.imageFit ?? '',
+      imageSources: collectImageSources(rawEntries),
       stepStyle: undefined,
       bodyStyle: undefined,
       stepRuns: undefined,
@@ -502,9 +569,10 @@ export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
 
   const seeds = rows.map((entry, index) => {
     const source = entry && typeof entry === 'object' ? (entry as AppsScriptRow) : {}
+    const sourceEntries = Object.entries(source)
     const values: Partial<Record<keyof typeof fieldAliases, string>> = {}
 
-    for (const [key, value] of Object.entries(source)) {
+    for (const [key, value] of sourceEntries) {
       const field = aliasToField(key)
       if (field) {
         values[field] = toStringValue(value).trim()
@@ -519,6 +587,12 @@ export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
       side: values.side ?? '',
       body: values.body ?? '',
       image: values.image ?? '',
+      imagePosition: values.imagePosition ?? '',
+      imageWidth: values.imageWidth ?? '',
+      imageHeight: values.imageHeight ?? '',
+      imageAlign: values.imageAlign ?? '',
+      imageFit: values.imageFit ?? '',
+      imageSources: collectImageSources(sourceEntries),
       stepStyle: parseStepStyle(source.stepStyle ?? source.step_style),
       bodyStyle: parseStepStyle(source.bodyStyle ?? source.body_style),
       stepRuns: parseRichTextRuns(source.stepRuns ?? source.step_runs),
@@ -613,6 +687,12 @@ export const sheetColumnGuide = [
   ['page_no', 'Display page number. This does not control sorting.'],
   ['step', 'Top label of the page.'],
   ['side', 'Side label text shown temporarily on the page.'],
-  ['body', 'Free text body.'],
-  ['image', 'Image URL or key. Placeholder only for now.'],
+  ['body', 'Free text body. Use {{image}}, {{image:2}}, {{image:3}} for single images, or {{images:1,2,3}} for one horizontal row of multiple images.'],
+  ['image', 'Primary image URL, Google Drive share link, or linked cell.'],
+  ['image_2', 'Optional second image source. Also supports image_3, image_4, and so on.'],
+  ['image_position', 'Optional fallback. top or bottom. Used only when BODY does not contain {{image}}.'],
+  ['image_width', 'Optional. CSS width such as 160px or 60%. Numbers are treated as px.'],
+  ['image_height', 'Optional. CSS height such as 120px or 40%. Numbers are treated as px.'],
+  ['image_align', 'Optional. left, center, or right.'],
+  ['image_fit', 'Optional. contain or cover.'],
 ] as const

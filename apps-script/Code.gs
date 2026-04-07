@@ -37,7 +37,13 @@ function doGet() {
 
   var stepColumnIndex = normalizedHeaders.indexOf('step');
   var bodyColumnIndex = normalizedHeaders.indexOf('body');
-  var imageColumnIndex = normalizedHeaders.indexOf('image');
+  var imageColumnIndexes = normalizedHeaders
+    .map(function(header, index) {
+      return isImageHeader_(header) ? index : -1;
+    })
+    .filter(function(index) {
+      return index >= 0;
+    });
   var rows = [];
 
   for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
@@ -92,12 +98,12 @@ function doGet() {
       );
     }
 
-    if (imageColumnIndex >= 0) {
-      var imageLink = extractLinkUrl_(richTextValues[rowIndex][imageColumnIndex]);
+    imageColumnIndexes.forEach(function(columnIndex) {
+      var imageLink = extractLinkUrl_(richTextValues[rowIndex][columnIndex]);
       if (imageLink) {
-        row[headers[imageColumnIndex]] = imageLink;
+        row[headers[columnIndex]] = imageLink;
       }
-    }
+    });
 
     rows.push(row);
   }
@@ -126,6 +132,10 @@ function extractCellStyle_(styleSeed) {
 
 function normalizeRunValue_(value) {
   return value === null || value === undefined ? '' : value;
+}
+
+function isImageHeader_(header) {
+  return /^image(?:_\d+|\d+)?$/.test(String(header || '').trim().toLowerCase());
 }
 
 function extractLinkUrl_(richTextValue) {

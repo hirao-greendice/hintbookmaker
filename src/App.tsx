@@ -10,6 +10,7 @@ import {
   sheetColumnGuide,
   type FormatResult,
   type FormattedPage,
+  type ImageSources,
   type RenderSettings,
   type RichTextRun,
 } from './lib/hintbook'
@@ -20,6 +21,31 @@ const defaultAppsScriptSource =
 const BASE_FONT_SIZE = 10
 const STEP_FONT_SCALE = 4
 const BODY_FONT_SCALE = 2.5
+const INLINE_IMAGE_TOKEN = /\{\{(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?\}\}/gi
+
+type InlineImageOptions = {
+  imageKey?: string
+  imageKeys?: string[]
+  source?: string
+  width?: string
+  height?: string
+  align?: string
+  fit?: string
+}
+
+type BodyContentItem =
+  | {
+      type: 'text'
+      runs: RichTextRun[]
+    }
+  | {
+      type: 'image'
+      options: InlineImageOptions
+    }
+  | {
+      type: 'imageRow'
+      options: InlineImageOptions
+    }
 
 function downloadJson(result: FormatResult) {
   const blob = new Blob([JSON.stringify(result, null, 2)], {
@@ -86,8 +112,8 @@ function extractGoogleDriveFileId(source: string) {
   return null
 }
 
-function resolveImageSource(source: string) {
-  const trimmed = source.trim()
+function resolveImageSource(source?: string) {
+  const trimmed = source?.trim()
   if (!trimmed) {
     return null
   }
@@ -102,6 +128,295 @@ function resolveImageSource(source: string) {
   } catch {
     return null
   }
+}
+
+function normalizeCssSize(value?: string) {
+  const trimmed = value?.trim()
+  if (!trimmed) {
+    return undefined
+  }
+
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return `${trimmed}px`
+  }
+
+  return trimmed
+}
+
+function resolveImagePosition(value?: string) {
+  const normalized = value?.trim().toLowerCase()
+  return normalized === 'top' ? 'top' : 'bottom'
+}
+
+function resolveImageAlign(value?: string) {
+  const normalized = value?.trim().toLowerCase()
+
+  if (normalized === 'left') {
+    return 'flex-start'
+  }
+
+  if (normalized === 'right') {
+    return 'flex-end'
+  }
+
+  return 'center'
+}
+
+function resolveImageFit(value?: string) {
+  const normalized = value?.trim().toLowerCase()
+  return normalized === 'cover' ? 'cover' : 'contain'
+}
+
+function cloneRunWithText(run: RichTextRun, text: string): RichTextRun {
+  return {
+    ...run,
+    text,
+  }
+}
+
+function sliceRunsByRange(
+  runs: RichTextRun[],
+  startIndex: number,
+  endIndex: number,
+) {
+  if (startIndex >= endIndex) {
+    return []
+  }
+
+  const slicedRuns: RichTextRun[] = []
+  let cursor = 0
+
+  for (const run of runs) {
+    const nextCursor = cursor + run.text.length
+    const overlapStart = Math.max(startIndex, cursor)
+    const overlapEnd = Math.min(endIndex, nextCursor)
+
+    if (overlapStart < overlapEnd) {
+      const relativeStart = overlapStart - cursor
+      const relativeEnd = overlapEnd - cursor
+      const text = run.text.slice(relativeStart, relativeEnd)
+
+      if (text) {
+        slicedRuns.push(cloneRunWithText(run, text))
+      }
+    }
+
+    cursor = nextCursor
+  }
+
+  return slicedRuns
+}
+
+function trimLeadingLineBreak(runs: RichTextRun[]) {
+  if (runs.length === 0) {
+    return runs
+  }
+
+  const nextRuns = [...runs]
+  const firstRun = nextRuns[0]
+  if (!firstRun) {
+    return nextRuns
+  }
+
+  let trimmedText = firstRun.text
+  if (trimmedText.startsWith('\r\n')) {
+    trimmedText = trimmedText.slice(2)
+  } else if (trimmedText.startsWith('\n') || trimmedText.startsWith('\r')) {
+    trimmedText = trimmedText.slice(1)
+  }
+
+  if (trimmedText === firstRun.text) {
+    return nextRuns
+  }
+
+  if (trimmedText) {
+    nextRuns[0] = cloneRunWithText(firstRun, trimmedText)
+    return nextRuns
+  }
+
+  nextRuns.shift()
+  return nextRuns
+}
+
+function trimTrailingLineBreak(runs: RichTextRun[]) {
+  if (runs.length === 0) {
+    return runs
+  }
+
+  const nextRuns = [...runs]
+  const lastIndex = nextRuns.length - 1
+  const lastRun = nextRuns[lastIndex]
+  if (!lastRun) {
+    return nextRuns
+  }
+
+  let trimmedText = lastRun.text
+  if (trimmedText.endsWith('\r\n')) {
+    trimmedText = trimmedText.slice(0, -2)
+  } else if (trimmedText.endsWith('\n') || trimmedText.endsWith('\r')) {
+    trimmedText = trimmedText.slice(0, -1)
+  }
+
+  if (trimmedText === lastRun.text) {
+    return nextRuns
+  }
+
+  if (trimmedText) {
+    nextRuns[lastIndex] = cloneRunWithText(lastRun, trimmedText)
+    return nextRuns
+  }
+
+  nextRuns.pop()
+  return nextRuns
+}
+
+function parseInlineImageOptions(input?: string): InlineImageOptions {
+  const options: InlineImageOptions = {}
+  if (!input) {
+    return options
+  }
+
+  const pairs = input.match(/[^\s"]+="[^"]*"|[^\s]+/g) ?? []
+
+  for (const pair of pairs) {
+    const separatorIndex = pair.indexOf('=')
+    if (separatorIndex <= 0) {
+      continue
+    }
+
+    const key = pair.slice(0, separatorIndex).trim().toLowerCase()
+    const rawValue = pair.slice(separatorIndex + 1).trim().replace(/^"(.*)"$/, '$1')
+    if (!rawValue) {
+      continue
+    }
+
+    if (key === 'src' || key === 'source' || key === 'url') {
+      options.source = rawValue
+    } else if (key === 'index' || key === 'image' || key === 'key') {
+      options.imageKey = rawValue
+    } else if (key === 'width' || key === 'w') {
+      options.width = rawValue
+    } else if (key === 'height' || key === 'h') {
+      options.height = rawValue
+    } else if (key === 'align') {
+      options.align = rawValue
+    } else if (key === 'fit') {
+      options.fit = rawValue
+    }
+  }
+
+  return options
+}
+
+function parseInlineImageKeys(input?: string) {
+  if (!input) {
+    return undefined
+  }
+
+  const keys = input
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  return keys.length > 0 ? keys : undefined
+}
+
+function buildImageSourceMap(page: FormattedPage | null): ImageSources {
+  const sources: ImageSources = {
+    ...(page?.imageSources ?? {}),
+  }
+
+  if (page?.image) {
+    sources['1'] = page.image
+  }
+
+  return sources
+}
+
+function sortedImageKeys(imageSources: ImageSources) {
+  return Object.keys(imageSources).sort((first, second) => Number(first) - Number(second))
+}
+
+function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContentItem[] {
+  const sourceRuns =
+    runs && runs.length > 0
+      ? runs
+      : fallback
+        ? [
+            {
+              text: fallback,
+            },
+          ]
+        : []
+
+  if (sourceRuns.length === 0) {
+    return []
+  }
+
+  const fullText = sourceRuns.map((run) => run.text).join('')
+  const items: BodyContentItem[] = []
+  let cursor = 0
+  let shouldTrimLeadingBreak = false
+
+  INLINE_IMAGE_TOKEN.lastIndex = 0
+  let match = INLINE_IMAGE_TOKEN.exec(fullText)
+
+  while (match) {
+    const matchStart = match.index
+    const matchEnd = matchStart + match[0].length
+
+    if (cursor < matchStart) {
+      let textRuns = sliceRunsByRange(sourceRuns, cursor, matchStart)
+      if (shouldTrimLeadingBreak) {
+        textRuns = trimLeadingLineBreak(textRuns)
+      }
+      textRuns = trimTrailingLineBreak(textRuns)
+      if (textRuns.length > 0) {
+        items.push({
+          type: 'text',
+          runs: textRuns,
+        })
+      }
+    }
+
+    items.push({
+      type:
+        match[1].toLowerCase() === 'images' ||
+        (parseInlineImageKeys(match[2])?.length ?? 0) > 1
+          ? 'imageRow'
+          : 'image',
+      options:
+        match[1].toLowerCase() === 'images' ||
+        (parseInlineImageKeys(match[2])?.length ?? 0) > 1
+          ? {
+              imageKeys: parseInlineImageKeys(match[2]),
+              ...parseInlineImageOptions(match[3]),
+            }
+          : {
+              imageKey: parseInlineImageKeys(match[2])?.[0] ?? '1',
+              ...parseInlineImageOptions(match[3]),
+            },
+    })
+
+    cursor = matchEnd
+    shouldTrimLeadingBreak = true
+    match = INLINE_IMAGE_TOKEN.exec(fullText)
+  }
+
+  if (cursor < fullText.length) {
+    let textRuns = sliceRunsByRange(sourceRuns, cursor, fullText.length)
+    if (shouldTrimLeadingBreak) {
+      textRuns = trimLeadingLineBreak(textRuns)
+    }
+    if (textRuns.length > 0) {
+      items.push({
+        type: 'text',
+        runs: textRuns,
+      })
+    }
+  }
+
+  return items
 }
 
 function scaledFontSize(size: number | undefined, multiplier: number) {
@@ -222,7 +537,21 @@ function RichText({
   )
 }
 
-function PageImage({ source }: { source: string }) {
+function PageImage({
+  source,
+  width,
+  height,
+  align,
+  fit,
+  compact,
+}: {
+  source?: string
+  width?: string
+  height?: string
+  align?: string
+  fit?: string
+  compact?: boolean
+}) {
   const [failed, setFailed] = useState(false)
   const resolvedSource = resolveImageSource(source)
 
@@ -231,15 +560,100 @@ function PageImage({ source }: { source: string }) {
   }
 
   return (
-    <div className="pageImageFrame">
+    <div
+      className={`pageImageFrame${compact ? ' pageImageFrame-compact' : ''}`}
+      style={{ justifyContent: resolveImageAlign(align) }}
+    >
       <img
         className="pageImage"
         src={resolvedSource}
         alt=""
         loading="lazy"
+        style={{
+          width: normalizeCssSize(width),
+          height: normalizeCssSize(height),
+          objectFit: resolveImageFit(fit),
+        }}
         onError={() => setFailed(true)}
       />
     </div>
+  )
+}
+
+function PageImageRow({
+  imageKeys,
+  imageSources,
+  width,
+  height,
+  align,
+  fit,
+  compact,
+}: {
+  imageKeys?: string[]
+  imageSources: ImageSources
+  width?: string
+  height?: string
+  align?: string
+  fit?: string
+  compact?: boolean
+}) {
+  const resolvedKeys = (imageKeys && imageKeys.length > 0
+    ? imageKeys
+    : sortedImageKeys(imageSources)
+  ).filter((imageKey) => Boolean(imageSources[imageKey]))
+
+  if (resolvedKeys.length === 0) {
+    return null
+  }
+
+  return (
+    <div className={`pageImageRow${compact ? ' pageImageRow-compact' : ''}`}>
+      {resolvedKeys.map((imageKey) => (
+        <div key={imageKey} className="pageImageRowItem">
+          <PageImage
+            source={imageSources[imageKey]}
+            width={width}
+            height={height}
+            align={align}
+            fit={fit}
+            compact={compact}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function BodyTextBlock({
+  runs,
+  multiplier,
+  defaultFontFamily,
+  cellFontFamily,
+  baseFontSize,
+  baseTextColor,
+}: {
+  runs: RichTextRun[]
+  multiplier: number
+  defaultFontFamily?: string
+  cellFontFamily?: string
+  baseFontSize?: number
+  baseTextColor?: string
+}) {
+  if (runs.length === 0) {
+    return null
+  }
+
+  return (
+    <RichText
+      runs={runs}
+      fallback=""
+      className="pageBodyText"
+      multiplier={multiplier}
+      defaultFontFamily={defaultFontFamily}
+      cellFontFamily={cellFontFamily}
+      baseFontSize={baseFontSize}
+      baseTextColor={baseTextColor}
+    />
   )
 }
 
@@ -295,6 +709,30 @@ function PagePreview({
   const pageNumberStyle = {
     fontFamily: pageNoFontFamily,
   }
+  const imageSources = buildImageSourceMap(page)
+  const imageKeys = sortedImageKeys(imageSources)
+  const bodyItems = buildBodyContentItems(page?.bodyRuns, page?.body || '')
+  const hasInlineImage = bodyItems.some(
+    (item) => item.type === 'image' || item.type === 'imageRow',
+  )
+  const hasBodyText = bodyItems.some((item) => item.type === 'text')
+  const imagePlacement = resolveImagePosition(page?.imagePosition)
+  const defaultImageItems: BodyContentItem[] = imageKeys.map((imageKey) => ({
+    type: 'image',
+    options: { imageKey },
+  }))
+  const bodyContentItems: BodyContentItem[] =
+    hasInlineImage || imageKeys.length === 0
+      ? bodyItems
+      : imagePlacement === 'top'
+        ? [
+            ...defaultImageItems,
+            ...bodyItems,
+          ]
+        : [
+            ...bodyItems,
+            ...defaultImageItems,
+          ]
 
   if (!page) {
     return (
@@ -329,19 +767,44 @@ function PagePreview({
         {page.side || ''}
       </div>
       <div className={`pageBody pageBody-${position}`} style={bodyBlockStyle}>
-        <RichText
-          runs={page.bodyRuns}
-          fallback={page.body || ''}
-          className="pageBodyText"
-          multiplier={bodyMultiplier}
-          defaultFontFamily={settings?.bodyFontFamily}
-          cellFontFamily={bodyStyle?.fontFamily}
-          baseFontSize={bodyStyle?.fontSize}
-          baseTextColor={bodyStyle?.textColor}
-        />
-        {page.image ? (
-          <PageImage source={page.image} />
-        ) : null}
+        <div className="pageBodyContent">
+          {bodyContentItems.map((item, itemIndex) =>
+            item.type === 'text' ? (
+              <BodyTextBlock
+                key={`text-${itemIndex}`}
+                runs={item.runs}
+                multiplier={bodyMultiplier}
+                defaultFontFamily={settings?.bodyFontFamily}
+                cellFontFamily={bodyStyle?.fontFamily}
+                baseFontSize={bodyStyle?.fontSize}
+                baseTextColor={bodyStyle?.textColor}
+              />
+            ) : (
+              item.type === 'image' ? (
+                <PageImage
+                  key={`image-${itemIndex}`}
+                  source={item.options.source ?? imageSources[item.options.imageKey ?? '1']}
+                  width={item.options.width ?? page.imageWidth}
+                  height={item.options.height ?? page.imageHeight}
+                  align={item.options.align ?? page.imageAlign}
+                  fit={item.options.fit ?? page.imageFit}
+                  compact={hasBodyText}
+                />
+              ) : (
+                <PageImageRow
+                  key={`image-row-${itemIndex}`}
+                  imageKeys={item.options.imageKeys}
+                  imageSources={imageSources}
+                  width={item.options.width ?? page.imageWidth}
+                  height={item.options.height ?? page.imageHeight}
+                  align={item.options.align ?? page.imageAlign}
+                  fit={item.options.fit ?? page.imageFit}
+                  compact={hasBodyText}
+                />
+              )
+            ),
+          )}
+        </div>
       </div>
       <div className="pageNumber" style={pageNumberStyle}>
         {page.pageNo || ''}
@@ -492,6 +955,12 @@ function App() {
         </p>
         <p className="note">
           <code>image</code> accepts Google Drive share links and regular image URLs.
+        </p>
+        <p className="note">
+          Put <code>{'{{image}}'}</code> inside <code>body</code> to place the image
+          between text blocks. Use <code>{'{{image:2}}'}</code> for <code>image_2</code>.
+          Use <code>{'{{images:1,2,3}}'}</code> to place multiple images in one row.
+          Example: <code>{'{{images:1,2 width=160px align=center}}'}</code>
         </p>
         <p className="note">
           PDF export uses the browser print dialog. Select <code>Save as PDF</code>.
