@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import './App.css'
 import {
   buildGoogleSheetCsvUrl,
@@ -24,6 +24,8 @@ const BODY_FONT_SCALE = 2.5
 const INLINE_IMAGE_TOKEN = /\{\{(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?\}\}/gi
 const SHEET_SOURCE_STORAGE_KEY = 'hintbookmaker.sheetSource'
 const APPS_SCRIPT_SOURCE_STORAGE_KEY = 'hintbookmaker.appsScriptSource'
+const SHEET_CANVAS_WIDTH = 1122
+const SHEET_CANVAS_HEIGHT = 794
 
 type InlineImageOptions = {
   imageKey?: string
@@ -824,6 +826,58 @@ function PagePreview({
   )
 }
 
+function ResponsiveSheetCanvas({ children }: { children: ReactNode }) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) {
+      return
+    }
+
+    const updateScale = () => {
+      const nextScale = Math.min(container.clientWidth / SHEET_CANVAS_WIDTH, 1)
+      setScale(nextScale > 0 ? nextScale : 1)
+    }
+
+    updateScale()
+
+    const observer = new ResizeObserver(() => {
+      updateScale()
+    })
+
+    observer.observe(container)
+    window.addEventListener('resize', updateScale)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateScale)
+    }
+  }, [])
+
+  return (
+    <div ref={containerRef} className="sheetViewport">
+      <div
+        className="sheetScaleBox"
+        style={{
+          width: `${SHEET_CANVAS_WIDTH * scale}px`,
+          height: `${SHEET_CANVAS_HEIGHT * scale}px`,
+        }}
+      >
+        <div
+          className="sheetCanvas"
+          style={{
+            transform: `scale(${scale})`,
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [sheetSource, setSheetSource] = useState(() =>
     readStoredValue(SHEET_SOURCE_STORAGE_KEY, defaultSheetSource),
@@ -969,72 +1023,76 @@ function App() {
           </button>
         </div>
 
-        <p className="note">
-          CSV columns: <code>order, page_no, step, side, body, image</code>
-        </p>
-        <p className="note">
-          Apps Script route can also read the step cell background color, text color,
-          and font family.
-        </p>
-        <p className="note">
-          <code>image</code> accepts Google Drive share links and regular image URLs.
-        </p>
-        <p className="note">
-          Put <code>{'{{image}}'}</code> inside <code>body</code> to place the image
-          between text blocks. Use <code>{'{{image:2}}'}</code> for <code>image_2</code>.
-          Use <code>{'{{images:1,2,3}}'}</code> to place multiple images in one row.
-          Example: <code>{'{{images:1,2 width=160px align=center}}'}</code>
-        </p>
-        <p className="note">
-          PDF export uses the browser print dialog. Select <code>Save as PDF</code>.
-        </p>
+        <details className="controlsDetails">
+          <summary>CSV guide, status, and advanced input</summary>
 
-        <label>
-          CSV text
-          <textarea
-            value={csvText}
-            onChange={(event) => setCsvText(event.target.value)}
-            rows={12}
-          />
-        </label>
+          <p className="note">
+            CSV columns: <code>order, page_no, step, side, body, image</code>
+          </p>
+          <p className="note">
+            Apps Script route can also read the step cell background color, text color,
+            and font family.
+          </p>
+          <p className="note">
+            <code>image</code> accepts Google Drive share links and regular image URLs.
+          </p>
+          <p className="note">
+            Put <code>{'{{image}}'}</code> inside <code>body</code> to place the image
+            between text blocks. Use <code>{'{{image:2}}'}</code> for <code>image_2</code>.
+            Use <code>{'{{images:1,2,3}}'}</code> to place multiple images in one row.
+            Example: <code>{'{{images:1,2 width=160px align=center}}'}</code>
+          </p>
+          <p className="note">
+            PDF export uses the browser print dialog. Select <code>Save as PDF</code>.
+          </p>
 
-        <div className="buttonRow">
-          <button type="button" onClick={handleFormat}>
-            Format CSV
-          </button>
-        </div>
+          <label>
+            CSV text
+            <textarea
+              value={csvText}
+              onChange={(event) => setCsvText(event.target.value)}
+              rows={12}
+            />
+          </label>
 
-        <h2>Status</h2>
-        <pre>{status}</pre>
+          <div className="buttonRow">
+            <button type="button" onClick={handleFormat}>
+              Format CSV
+            </button>
+          </div>
 
-        <h2>Columns</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>column</th>
-              <th>meaning</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sheetColumnGuide.map(([column, description]) => (
-              <tr key={column}>
-                <td>{column}</td>
-                <td>{description}</td>
+          <h2>Status</h2>
+          <pre>{status}</pre>
+
+          <h2>Columns</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>column</th>
+                <th>meaning</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {result?.warnings.length ? (
-          <>
-            <h2>Warnings</h2>
-            <ul>
-              {result.warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
+            </thead>
+            <tbody>
+              {sheetColumnGuide.map(([column, description]) => (
+                <tr key={column}>
+                  <td>{column}</td>
+                  <td>{description}</td>
+                </tr>
               ))}
-            </ul>
-          </>
-        ) : null}
+            </tbody>
+          </table>
+
+          {result?.warnings.length ? (
+            <>
+              <h2>Warnings</h2>
+              <ul>
+                {result.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </details>
       </section>
 
       <section className="previewArea">
@@ -1050,8 +1108,7 @@ function App() {
               <span>sheet {spread.sheetNumber}</span>
               <span>spread group {spread.spreadNumber}</span>
             </div>
-            <div className="sheetViewport">
-              <div className="sheetCanvas">
+            <ResponsiveSheetCanvas>
                 <PagePreview
                   page={spread.leftPage}
                   position="left"
@@ -1062,8 +1119,7 @@ function App() {
                   position="right"
                   settings={result?.settings}
                 />
-              </div>
-            </div>
+            </ResponsiveSheetCanvas>
           </section>
         )) ?? null}
       </section>

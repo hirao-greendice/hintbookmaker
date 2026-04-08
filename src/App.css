@@ -11,9 +11,41 @@
   border-right: 1px solid #d0d0d0;
 }
 
+.controlsDetails {
+  margin-top: 20px;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.controlsDetails summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 700;
+  background: #f1f1f1;
+}
+
+.controlsDetails[open] summary {
+  border-bottom: 1px solid #dcdcdc;
+}
+
+.controlsDetails > :not(summary) {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+.controlsDetails > label:last-of-type,
+.controlsDetails > ul:last-child,
+.controlsDetails > table:last-child,
+.controlsDetails > pre:last-child {
+  margin-bottom: 16px;
+}
+
 .previewArea {
   padding: 20px;
   background: #f5f5f5;
+  min-width: 0;
 }
 
 label {
@@ -95,9 +127,22 @@ pre {
 
 .sheetViewport {
   width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 8px;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.sheetScaleBox {
+  min-height: 1px;
+  position: relative;
+  max-width: 100%;
+}
+
+.sheetScaleBox .sheetCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
 }
 
 .sheetCanvas {
@@ -294,8 +339,18 @@ pre {
 }
 
 @media (max-width: 800px) {
+  .controls,
   .previewArea {
     padding: 12px;
+  }
+
+  .controlsDetails summary {
+    padding: 12px;
+  }
+
+  .controlsDetails > :not(summary) {
+    margin-left: 12px;
+    margin-right: 12px;
   }
 }
 
@@ -342,6 +397,14 @@ pre {
   .sheetViewport {
     overflow: visible;
     padding-bottom: 0;
+  }
+
+  .sheetScaleBox {
+    height: auto !important;
+  }
+
+  .sheetScaleBox .sheetCanvas {
+    transform: none !important;
   }
 
   .sheetCanvas {
