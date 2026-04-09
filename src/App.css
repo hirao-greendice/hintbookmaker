@@ -440,6 +440,8 @@ pre {
   body {
     margin: 0;
     background: #ffffff;
+    width: 297mm;
+    height: 210mm;
   }
 
   .app {
@@ -461,6 +463,9 @@ pre {
 
   .sheetPreview {
     margin: 0;
+    width: 297mm;
+    height: 210mm;
+    overflow: hidden;
     break-after: page;
     page-break-after: always;
   }
@@ -471,15 +476,23 @@ pre {
   }
 
   .sheetViewport {
+    display: block;
+    width: 297mm !important;
     overflow: visible;
     padding-bottom: 0;
   }
 
   .sheetScaleBox {
+    width: 297mm !important;
     height: auto !important;
+    min-height: 0;
+    position: static;
   }
 
   .sheetScaleBox .sheetCanvas {
+    position: static !important;
+    top: auto;
+    left: auto;
     transform: none !important;
   }
 
@@ -487,5 +500,6 @@ pre {
     width: 297mm;
     height: 210mm;
     border: 0;
+    margin: 0;
   }
 }
