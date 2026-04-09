@@ -467,6 +467,9 @@ pre {
     width: 297mm;
     height: 210mm;
     overflow: hidden;
+    border: 0;
+    outline: 0;
+    box-shadow: none;
     break-after: page;
     page-break-after: always;
   }
@@ -501,6 +504,14 @@ pre {
     width: 297mm;
     height: 210mm;
     border: 0;
+    outline: 0;
+    box-shadow: none;
     margin: 0;
+  }
+
+  .pagePreview {
+    border: 0;
+    outline: 0;
+    box-shadow: none;
   }
 }

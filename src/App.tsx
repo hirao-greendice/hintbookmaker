@@ -155,6 +155,48 @@ function resolveImageSource(source?: string) {
   }
 }
 
+function waitForNextFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  })
+}
+
+function waitForImageElement(image: HTMLImageElement) {
+  const decodeImage = () =>
+    typeof image.decode === 'function'
+      ? image.decode().catch(() => undefined)
+      : Promise.resolve()
+
+  if (image.complete) {
+    return decodeImage()
+  }
+
+  return new Promise<void>((resolve) => {
+    const finish = () => {
+      cleanup()
+      void decodeImage().finally(resolve)
+    }
+
+    const cleanup = () => {
+      image.removeEventListener('load', finish)
+      image.removeEventListener('error', finish)
+    }
+
+    image.addEventListener('load', finish, { once: true })
+    image.addEventListener('error', finish, { once: true })
+  })
+}
+
+async function waitForPrintableImages(root: ParentNode = document) {
+  const images = Array.from(root.querySelectorAll('img'))
+  if (images.length === 0) {
+    return
+  }
+
+  await Promise.all(images.map((image) => waitForImageElement(image)))
+  await waitForNextFrame()
+}
+
 function normalizeCssSize(value?: string) {
   const trimmed = value?.trim()
   if (!trimmed) {
@@ -593,7 +635,8 @@ function PageImage({
         className="pageImage"
         src={resolvedSource}
         alt=""
-        loading="lazy"
+        loading="eager"
+        fetchPriority="high"
         style={{
           width: normalizeCssSize(width),
           height: normalizeCssSize(height),
@@ -1146,11 +1189,14 @@ function App() {
           meta: `spread group ${spread.spreadNumber}`,
         })) ?? [])
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!previewSpreads.length) {
       setStatus('No preview spreads available for PDF export.')
       return
     }
+
+    setStatus('Preparing images for PDF export...')
+    await waitForPrintableImages(document.querySelector('.previewArea') ?? document)
 
     setStatus(
       `Opening print dialog for ${previewSpreads.length} ${
