@@ -1233,26 +1233,43 @@ function App() {
         <h1>Hint Book Formatter</h1>
         <p>Spreadsheet input first. Temporary layout only.</p>
 
-        <label>
+        <label style={{ display: 'none' }} aria-hidden="true">
           Google Sheets URL or ID
           <input
             type="text"
             value={sheetSource}
             onChange={(event) => setSheetSource(event.target.value)}
+            tabIndex={-1}
           />
         </label>
 
         <div className="buttonRow">
-          <button type="button" onClick={handleLoadSpreadsheet} disabled={loading}>
+          <button
+            type="button"
+            onClick={handleLoadSpreadsheet}
+            disabled={loading}
+            style={{ display: 'none' }}
+            aria-hidden="true"
+            tabIndex={-1}
+          >
             {loading ? 'Loading...' : 'Load spreadsheet'}
           </button>
-          <button type="button" onClick={() => setCsvText(sampleCsv)}>
+          <button
+            type="button"
+            onClick={() => setCsvText(sampleCsv)}
+            style={{ display: 'none' }}
+            aria-hidden="true"
+            tabIndex={-1}
+          >
             Use sample CSV
           </button>
           <button
             type="button"
             onClick={() => result && downloadJson(result)}
             disabled={!result}
+            style={{ display: 'none' }}
+            aria-hidden="true"
+            tabIndex={-1}
           >
             Download JSON
           </button>
@@ -1279,7 +1296,13 @@ function App() {
           <button type="button" onClick={handleLoadAppsScript} disabled={loading}>
             {loading ? 'Loading...' : 'Load Apps Script'}
           </button>
-          <button type="button" onClick={handleUseAppsScriptSample}>
+          <button
+            type="button"
+            onClick={handleUseAppsScriptSample}
+            style={{ display: 'none' }}
+            aria-hidden="true"
+            tabIndex={-1}
+          >
             Use Apps Script sample
           </button>
         </div>

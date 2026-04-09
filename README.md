@@ -2,6 +2,10 @@
 
 Hint Book Formatter is a Vite + React app that reads data from Google Sheets or an Apps Script endpoint and renders print spreads plus booklet-order previews.
 
+## User Manual
+
+For the end-user operating guide in Japanese, see [MANUAL.md](./MANUAL.md).
+
 ## Local Development
 
 ```bash
