@@ -1,14 +1,104 @@
 .app {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
   min-height: 100vh;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
+.appHeader {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  grid-column: 1 / -1;
+  background: #ffffff;
+  border-bottom: 1px solid #d0d0d0;
+}
+
+.appHeaderBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.appTitle {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.1;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.appHeaderActions {
+  margin-top: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.appHeaderField {
+  margin-top: 0;
+  flex: 1 1 420px;
+  min-width: 220px;
+}
+
+.appHeaderField input {
+  margin-top: 0;
+}
+
+.controlsDetailsInline {
+  margin-top: 0;
+  flex: 0 0 auto;
+  position: relative;
+  border-radius: 8px;
+}
+
+.controlsDetailsInline summary {
+  padding: 8px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  background: #f7f7f7;
+  list-style: none;
+}
+
+.controlsDetailsInline[open] {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 12px;
+  width: min(680px, calc(100vw - 24px));
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.14);
+}
+
+.controlsDetailsInline[open] summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .controls {
   padding: 20px;
-  border-right: 1px solid #d0d0d0;
+}
+
+.controlsInHeader {
+  padding-top: 0;
 }
 
 .controlsDetails {
@@ -43,9 +133,45 @@
 }
 
 .previewArea {
+  grid-column: 1;
+  grid-row: 2;
   padding: 20px;
   background: #f5f5f5;
   min-width: 0;
+}
+
+.scrollNav {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scrollNavButton {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid #cfcfcf;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #222222;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scrollNavButton:hover {
+  background: #ffffff;
+}
+
+.scrollNavButton svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
 }
 
 label {
@@ -83,6 +209,7 @@ textarea {
 
 button {
   padding: 8px 12px;
+  white-space: nowrap;
 }
 
 .note {
@@ -404,20 +531,39 @@ pre {
 }
 
 @media (max-width: 1100px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-
-  .controls {
-    border-right: 0;
-    border-bottom: 1px solid #d0d0d0;
+  .appHeaderBar {
+    padding: 8px 10px;
+    gap: 8px;
   }
 }
 
 @media (max-width: 800px) {
+  .appTitle {
+    font-size: 16px;
+  }
+
+  .appHeaderField {
+    min-width: 180px;
+  }
+
+  .appHeaderBar {
+    padding: 8px;
+  }
+
   .controls,
   .previewArea {
     padding: 12px;
+  }
+
+  .scrollNav {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .scrollNavButton {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
   }
 
   .controlsDetails summary {
@@ -449,11 +595,10 @@ pre {
     min-height: auto;
   }
 
+  .appHeader,
   .controls,
-  .previewArea > h2,
-  .previewArea > .buttonRow,
-  .previewArea > .note,
-  .sheetMeta {
+  .sheetMeta,
+  .scrollNav {
     display: none;
   }
 

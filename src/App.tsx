@@ -63,6 +63,8 @@ type PreviewSpread = {
   meta: string
 }
 
+type ScrollNavDirection = 'up' | 'down'
+
 function downloadJson(result: FormatResult) {
   const blob = new Blob([JSON.stringify(result, null, 2)], {
     type: 'application/json',
@@ -99,6 +101,82 @@ function countSideDefinitions(sideDefinitions?: SideBlockDefinitions) {
   }
 
   return Object.keys(sideDefinitions).length
+}
+
+function pageScrollTargetOffset() {
+  const header = document.querySelector('.appHeader')
+  return (header instanceof HTMLElement ? header.offsetHeight : 0) + 12
+}
+
+function scrollToPagePosition(top: number) {
+  window.scrollTo({
+    top: Math.max(top - pageScrollTargetOffset(), 0),
+    behavior: 'smooth',
+  })
+}
+
+function scrollToBoundary(position: 'top' | 'bottom') {
+  window.scrollTo({
+    top:
+      position === 'top'
+        ? 0
+        : Math.max(document.documentElement.scrollHeight - window.innerHeight, 0),
+    behavior: 'smooth',
+  })
+}
+
+function scrollByPreviewPage(direction: ScrollNavDirection) {
+  const sections = Array.from(document.querySelectorAll('.sheetPreview')).filter(
+    (section): section is HTMLElement => section instanceof HTMLElement,
+  )
+
+  if (sections.length === 0) {
+    window.scrollBy({
+      top: direction === 'down' ? window.innerHeight * 0.85 : -window.innerHeight * 0.85,
+      behavior: 'smooth',
+    })
+    return
+  }
+
+  const currentTop = window.scrollY + pageScrollTargetOffset()
+  const sectionTops = sections.map((section) => ({
+    section,
+    top: section.getBoundingClientRect().top + window.scrollY,
+  }))
+
+  if (direction === 'down') {
+    const nextSection = sectionTops.find(({ top }) => top > currentTop + 12)
+    if (nextSection) {
+      scrollToPagePosition(nextSection.top)
+      return
+    }
+
+    scrollToBoundary('bottom')
+    return
+  }
+
+  const previousSection = [...sectionTops].reverse().find(({ top }) => top < currentTop - 12)
+  if (previousSection) {
+    scrollToPagePosition(previousSection.top)
+    return
+  }
+
+  scrollToBoundary('top')
+}
+
+function ScrollNavIcon({ direction }: { direction: 'top' | 'up' | 'down' | 'bottom' }) {
+  const pathByDirection = {
+    top: 'M12 5l-5 5h3v6h4v-6h3l-5-5zm0 8l-5 5h3v1h4v-1h3l-5-5z',
+    up: 'M12 7l-5 5h3v5h4v-5h3l-5-5z',
+    down: 'M12 17l5-5h-3V7h-4v5H7l5 5z',
+    bottom: 'M12 19l5-5h-3V8h-4v6H7l5 5zm0-8l5-5h-3V5h-4v1H7l5 5z',
+  } as const
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={pathByDirection[direction]} />
+    </svg>
+  )
 }
 
 async function fetchSpreadsheetCsv(source: string) {
@@ -1229,21 +1307,18 @@ function App() {
 
   return (
     <main className="app">
-      <section className="controls">
-        <h1>Hint Book Formatter</h1>
-        <p>Spreadsheet input first. Temporary layout only.</p>
+      <header className="appHeader">
+        <div className="appHeaderBar">
+          <label style={{ display: 'none' }} aria-hidden="true">
+            Google Sheets URL or ID
+            <input
+              type="text"
+              value={sheetSource}
+              onChange={(event) => setSheetSource(event.target.value)}
+              tabIndex={-1}
+            />
+          </label>
 
-        <label style={{ display: 'none' }} aria-hidden="true">
-          Google Sheets URL or ID
-          <input
-            type="text"
-            value={sheetSource}
-            onChange={(event) => setSheetSource(event.target.value)}
-            tabIndex={-1}
-          />
-        </label>
-
-        <div className="buttonRow">
           <button
             type="button"
             onClick={handleLoadSpreadsheet}
@@ -1275,29 +1350,6 @@ function App() {
           </button>
           <button
             type="button"
-            onClick={handleExportPdf}
-            disabled={!previewSpreads.length}
-          >
-            Export PDF
-          </button>
-        </div>
-
-        <label>
-          Apps Script Web App URL
-          <input
-            type="text"
-            value={appsScriptSource}
-            onChange={(event) => setAppsScriptSource(event.target.value)}
-            placeholder="https://script.google.com/macros/s/.../exec"
-          />
-        </label>
-
-        <div className="buttonRow">
-          <button type="button" onClick={handleLoadAppsScript} disabled={loading}>
-            {loading ? 'Loading...' : 'Load Apps Script'}
-          </button>
-          <button
-            type="button"
             onClick={handleUseAppsScriptSample}
             style={{ display: 'none' }}
             aria-hidden="true"
@@ -1305,10 +1357,49 @@ function App() {
           >
             Use Apps Script sample
           </button>
-        </div>
 
-        <details className="controlsDetails">
-          <summary>CSV guide, status, and advanced input</summary>
+          <h1 className="appTitle">Hint Book Formatter</h1>
+          <label className="appHeaderField">
+            <span className="srOnly">Apps Script Web App URL</span>
+            <input
+              type="text"
+              value={appsScriptSource}
+              onChange={(event) => setAppsScriptSource(event.target.value)}
+              placeholder="Apps Script Web App URL"
+            />
+          </label>
+          <button type="button" onClick={handleLoadAppsScript} disabled={loading}>
+            {loading ? 'Loading...' : 'Load Apps Script'}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            disabled={!previewSpreads.length}
+          >
+            Export PDF
+          </button>
+          <div className="buttonRow appHeaderActions">
+            <button
+              type="button"
+              onClick={() => setPreviewMode('print')}
+              disabled={previewMode === 'print'}
+            >
+              印刷用
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewMode('book')}
+              disabled={previewMode === 'book'}
+            >
+              本にした
+            </button>
+          </div>
+          <details
+            className="controlsDetails controlsDetailsInline"
+            style={{ display: 'none' }}
+            aria-hidden="true"
+          >
+          <summary>詳細</summary>
 
           <p className="note">
             CSV columns: <code>order, page_no, step, side, body, image</code>
@@ -1386,32 +1477,10 @@ function App() {
             </>
           ) : null}
         </details>
-      </section>
+        </div>
+      </header>
 
       <section className="previewArea">
-        <h2>{previewMode === 'book' ? 'Book preview' : 'Print spreads'}</h2>
-        <div className="buttonRow">
-          <button
-            type="button"
-            onClick={() => setPreviewMode('print')}
-            disabled={previewMode === 'print'}
-          >
-            印刷用
-          </button>
-          <button
-            type="button"
-            onClick={() => setPreviewMode('book')}
-            disabled={previewMode === 'book'}
-          >
-            本にした
-          </button>
-        </div>
-        <p className="note">
-          {previewMode === 'book'
-            ? 'Book preview order: blank,1 then 2,3 then 4,5 then 6,7...'
-            : 'Order mapping: 1-4 becomes [1,4] then [3,2]. The same rule repeats for 5-8, 9-12...'}
-        </p>
-
         {previewSpreads.map((spread) => (
           <section key={spread.key} className="sheetPreview">
             <div className="sheetMeta">
@@ -1437,6 +1506,45 @@ function App() {
           </section>
         )) ?? null}
       </section>
+
+      <nav className="scrollNav" aria-label="Page navigation">
+        <button
+          type="button"
+          className="scrollNavButton"
+          onClick={() => scrollToBoundary('top')}
+          aria-label="ページトップに移動"
+          title="ページトップに移動"
+        >
+          <ScrollNavIcon direction="top" />
+        </button>
+        <button
+          type="button"
+          className="scrollNavButton"
+          onClick={() => scrollByPreviewPage('up')}
+          aria-label="1ページ上に移動"
+          title="1ページ上に移動"
+        >
+          <ScrollNavIcon direction="up" />
+        </button>
+        <button
+          type="button"
+          className="scrollNavButton"
+          onClick={() => scrollByPreviewPage('down')}
+          aria-label="1ページ下に移動"
+          title="1ページ下に移動"
+        >
+          <ScrollNavIcon direction="down" />
+        </button>
+        <button
+          type="button"
+          className="scrollNavButton"
+          onClick={() => scrollToBoundary('bottom')}
+          aria-label="ページ最下部に移動"
+          title="ページ最下部に移動"
+        >
+          <ScrollNavIcon direction="bottom" />
+        </button>
+      </nav>
     </main>
   )
 }
