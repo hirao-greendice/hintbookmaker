@@ -84,6 +84,23 @@ function readStoredValue(storageKey: string, fallback: string) {
   return storedValue || fallback
 }
 
+function countConfiguredSettings(settings?: RenderSettings) {
+  if (!settings) {
+    return 0
+  }
+
+  return Object.values(settings).filter((value) => value !== undefined && value !== '')
+    .length
+}
+
+function countSideDefinitions(sideDefinitions?: SideBlockDefinitions) {
+  if (!sideDefinitions) {
+    return 0
+  }
+
+  return Object.keys(sideDefinitions).length
+}
+
 async function fetchSpreadsheetCsv(source: string) {
   const csvUrl = buildGoogleSheetCsvUrl(source)
   const response = await fetch(csvUrl)
@@ -1158,9 +1175,11 @@ function App() {
     try {
       const payload = await fetchAppsScriptJson(appsScriptSource)
       const next = formatHintBookFromAppsScript(payload)
+      const loadedSettingCount = countConfiguredSettings(next.settings)
+      const loadedSideDefinitionCount = countSideDefinitions(next.sideDefinitions)
       setResult(next)
       setStatus(
-        `Loaded Apps Script data and formatted ${next.pages.length} pages into ${next.spreads.length} print spreads.`,
+        `Loaded Apps Script data and formatted ${next.pages.length} pages into ${next.spreads.length} print spreads. Shared settings: ${loadedSettingCount}. Side definitions: ${loadedSideDefinitionCount}.`,
       )
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Apps Script load failed.')
@@ -1171,9 +1190,11 @@ function App() {
 
   const handleUseAppsScriptSample = () => {
     const next = formatHintBookFromAppsScript(sampleAppsScriptResponse)
+    const loadedSettingCount = countConfiguredSettings(next.settings)
+    const loadedSideDefinitionCount = countSideDefinitions(next.sideDefinitions)
     setResult(next)
     setStatus(
-      `Loaded sample Apps Script data and formatted ${next.pages.length} pages into ${next.spreads.length} print spreads.`,
+      `Loaded sample Apps Script data and formatted ${next.pages.length} pages into ${next.spreads.length} print spreads. Shared settings: ${loadedSettingCount}. Side definitions: ${loadedSideDefinitionCount}.`,
     )
   }
 

@@ -116,8 +116,12 @@ type AppsScriptRow = Record<string, unknown> & {
 
 type AppsScriptPayload = {
   rows?: unknown
+  data?: unknown
   settings?: unknown
+  renderSettings?: unknown
+  render_settings?: unknown
   sideDefinitions?: unknown
+  side_definitions?: unknown
 }
 
 const fieldAliases = {
@@ -646,12 +650,23 @@ export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
   }
 
   const container = payload as AppsScriptPayload
-  const rows = Array.isArray(container.rows) ? container.rows : null
+  const rowsSource =
+    container.rows ??
+    (container.data &&
+    typeof container.data === 'object' &&
+    'rows' in (container.data as Record<string, unknown>)
+      ? (container.data as Record<string, unknown>).rows
+      : undefined)
+  const rows = Array.isArray(rowsSource) ? rowsSource : null
   if (!rows) {
     throw new Error('Apps Script response must have a rows array.')
   }
-  const settings = parseRenderSettings(container.settings)
-  const sideDefinitions = parseSideBlockDefinitions(container.sideDefinitions)
+  const settings = parseRenderSettings(
+    container.settings ?? container.renderSettings ?? container.render_settings,
+  )
+  const sideDefinitions = parseSideBlockDefinitions(
+    container.sideDefinitions ?? container.side_definitions,
+  )
 
   const seeds = rows.map((entry, index) => {
     const source = entry && typeof entry === 'object' ? (entry as AppsScriptRow) : {}
