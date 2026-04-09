@@ -451,6 +451,7 @@ pre {
 
   .controls,
   .previewArea > h2,
+  .previewArea > .buttonRow,
   .previewArea > .note,
   .sheetMeta {
     display: none;

@@ -53,6 +53,16 @@ type BodyContentItem =
       options: InlineImageOptions
     }
 
+type PreviewMode = 'print' | 'book'
+
+type PreviewSpread = {
+  key: string
+  leftPage: FormattedPage | null
+  rightPage: FormattedPage | null
+  label: string
+  meta: string
+}
+
 function downloadJson(result: FormatResult) {
   const blob = new Blob([JSON.stringify(result, null, 2)], {
     type: 'application/json',
@@ -730,6 +740,39 @@ function resolveSideBlocks(
   }))
 }
 
+function buildBookPreviewSpreads(pages: FormattedPage[]): PreviewSpread[] {
+  if (pages.length === 0) {
+    return []
+  }
+
+  const spreads: PreviewSpread[] = [
+    {
+      key: 'book-cover-open',
+      leftPage: null,
+      rightPage: pages[0] ?? null,
+      label: 'book spread 1',
+      meta: 'blank, 1',
+    },
+  ]
+
+  for (let index = 1; index < pages.length; index += 2) {
+    const leftPage = pages[index] ?? null
+    const rightPage = pages[index + 1] ?? null
+    const spreadNumber = spreads.length + 1
+    const labels = [leftPage?.pageNo, rightPage?.pageNo].filter(Boolean)
+
+    spreads.push({
+      key: `book-${spreadNumber}-${leftPage?.order ?? 'blank'}-${rightPage?.order ?? 'blank'}`,
+      leftPage,
+      rightPage,
+      label: `book spread ${spreadNumber}`,
+      meta: labels.length > 0 ? labels.join(', ') : 'blank',
+    })
+  }
+
+  return spreads
+}
+
 function PageSideLabel({
   page,
   position,
@@ -808,11 +851,13 @@ function PageSideLabel({
 function PagePreview({
   page,
   position,
+  layoutPosition = position,
   settings,
   sideDefinitions,
 }: {
   page: FormattedPage | null
   position: 'left' | 'right'
+  layoutPosition?: 'left' | 'right'
   settings?: RenderSettings
   sideDefinitions?: SideBlockDefinitions
 }) {
@@ -885,8 +930,8 @@ function PagePreview({
     return (
       <article className={`pagePreview pagePreview-${position}`}>
         <div className="pageStep" />
-        <div className={`pageSideLabel pageSideLabel-${position}`} />
-        <div className={`pageBody pageBody-${position}`} />
+        <div className={`pageSideLabel pageSideLabel-${layoutPosition}`} />
+        <div className={`pageBody pageBody-${layoutPosition}`} />
         <div className="pageNumber" />
       </article>
     )
@@ -909,11 +954,11 @@ function PagePreview({
       </div>
       <PageSideLabel
         page={page}
-        position={position}
+        position={layoutPosition}
         defaultFontFamily={sideFontFamily}
         sideDefinitions={sideDefinitions}
       />
-      <div className={`pageBody pageBody-${position}`} style={bodyBlockStyle}>
+      <div className={`pageBody pageBody-${layoutPosition}`} style={bodyBlockStyle}>
         <div className="pageBodyContent">
           {bodyContentItems.map((item, itemIndex) =>
             item.type === 'text' ? (
@@ -1025,6 +1070,7 @@ function App() {
   )
   const [status, setStatus] = useState('Ready.')
   const [loading, setLoading] = useState(false)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('print')
 
   useEffect(() => {
     window.localStorage.setItem(SHEET_SOURCE_STORAGE_KEY, sheetSource)
@@ -1088,14 +1134,28 @@ function App() {
     )
   }
 
+  const bookPreviewSpreads = result ? buildBookPreviewSpreads(result.pages) : []
+  const previewSpreads: PreviewSpread[] =
+    previewMode === 'book'
+      ? bookPreviewSpreads
+      : (result?.spreads.map((spread) => ({
+          key: `print-${spread.sheetNumber}`,
+          leftPage: spread.leftPage,
+          rightPage: spread.rightPage,
+          label: `sheet ${spread.sheetNumber}`,
+          meta: `spread group ${spread.spreadNumber}`,
+        })) ?? [])
+
   const handleExportPdf = () => {
-    if (!result?.spreads.length) {
-      setStatus('No print spreads available for PDF export.')
+    if (!previewSpreads.length) {
+      setStatus('No preview spreads available for PDF export.')
       return
     }
 
     setStatus(
-      `Opening print dialog for ${result.spreads.length} sheets. Choose "Save as PDF" to download.`,
+      `Opening print dialog for ${previewSpreads.length} ${
+        previewMode === 'book' ? 'book preview' : 'print layout'
+      } sheets. Choose "Save as PDF" to download.`,
     )
     window.print()
   }
@@ -1132,7 +1192,7 @@ function App() {
           <button
             type="button"
             onClick={handleExportPdf}
-            disabled={!result?.spreads.length}
+            disabled={!previewSpreads.length}
           >
             Export PDF
           </button>
@@ -1239,28 +1299,47 @@ function App() {
       </section>
 
       <section className="previewArea">
-        <h2>Print spreads</h2>
+        <h2>{previewMode === 'book' ? 'Book preview' : 'Print spreads'}</h2>
+        <div className="buttonRow">
+          <button
+            type="button"
+            onClick={() => setPreviewMode('print')}
+            disabled={previewMode === 'print'}
+          >
+            印刷用
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreviewMode('book')}
+            disabled={previewMode === 'book'}
+          >
+            本にした
+          </button>
+        </div>
         <p className="note">
-          Order mapping: 1-4 becomes [1,4] then [3,2]. The same rule repeats for
-          5-8, 9-12...
+          {previewMode === 'book'
+            ? 'Book preview order: blank,1 then 2,3 then 4,5 then 6,7...'
+            : 'Order mapping: 1-4 becomes [1,4] then [3,2]. The same rule repeats for 5-8, 9-12...'}
         </p>
 
-        {result?.spreads.map((spread) => (
-          <section key={spread.sheetNumber} className="sheetPreview">
+        {previewSpreads.map((spread) => (
+          <section key={spread.key} className="sheetPreview">
             <div className="sheetMeta">
-              <span>sheet {spread.sheetNumber}</span>
-              <span>spread group {spread.spreadNumber}</span>
+              <span>{spread.label}</span>
+              <span>{spread.meta}</span>
             </div>
             <ResponsiveSheetCanvas>
                 <PagePreview
                   page={spread.leftPage}
                   position="left"
+                  layoutPosition={previewMode === 'book' ? 'right' : 'left'}
                   settings={result?.settings}
                   sideDefinitions={result?.sideDefinitions}
                 />
                 <PagePreview
                   page={spread.rightPage}
                   position="right"
+                  layoutPosition={previewMode === 'book' ? 'left' : 'right'}
                   settings={result?.settings}
                   sideDefinitions={result?.sideDefinitions}
                 />
