@@ -2,6 +2,7 @@ function doGet() {
   var spreadsheetId = '1d4XuVJPSy579inDl082_Qr84CHU5rFpcnx0kSwiblg4';
   var sheetName = 'シート1';
   var settingsSheetName = 'settings';
+  var sideSheetName = 'side';
 
   var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
   var sheet = spreadsheet.getSheetByName(sheetName);
@@ -15,7 +16,10 @@ function doGet() {
   var lastColumn = sheet.getLastColumn();
   if (lastRow < 2 || lastColumn < 1) {
     return ContentService
-      .createTextOutput(JSON.stringify({ rows: [] }))
+      .createTextOutput(JSON.stringify({
+        rows: [],
+        sideDefinitions: getSideDefinitions_(spreadsheet, sideSheetName),
+      }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -32,7 +36,7 @@ function doGet() {
   var headers = values[0];
 
   var normalizedHeaders = headers.map(function(header) {
-    return String(header).trim().toLowerCase().replace(/[\s-]+/g, '_');
+    return normalizeHeader_(header);
   });
 
   var stepColumnIndex = normalizedHeaders.indexOf('step');
@@ -112,6 +116,7 @@ function doGet() {
     .createTextOutput(JSON.stringify({
       rows: rows,
       settings: getSettings_(spreadsheet, settingsSheetName),
+      sideDefinitions: getSideDefinitions_(spreadsheet, sideSheetName),
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -132,6 +137,10 @@ function extractCellStyle_(styleSeed) {
 
 function normalizeRunValue_(value) {
   return value === null || value === undefined ? '' : value;
+}
+
+function normalizeHeader_(value) {
+  return String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 }
 
 function isImageHeader_(header) {
@@ -225,6 +234,159 @@ function extractRuns(richTextValue, cellStyle) {
     .filter(function(run) {
       return run !== null;
     });
+}
+
+function getHeaderIndex_(headers, aliases) {
+  for (var index = 0; index < headers.length; index += 1) {
+    if (aliases.indexOf(headers[index]) >= 0) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function parsePositiveNumber_(value) {
+  var text = String(value || '').trim();
+  if (!text) {
+    return '';
+  }
+
+  var parsed = Number(text.replace(/%$/, ''));
+  return isFinite(parsed) && parsed > 0 ? parsed : '';
+}
+
+function compactStyle_(style) {
+  if (!style) {
+    return null;
+  }
+
+  var compacted = {};
+  if (style.backgroundColor) compacted.backgroundColor = style.backgroundColor;
+  if (style.textColor) compacted.textColor = style.textColor;
+  if (style.fontFamily) compacted.fontFamily = style.fontFamily;
+  if (style.fontSize) compacted.fontSize = style.fontSize;
+  if (style.bold === true) compacted.bold = true;
+  if (style.italic === true) compacted.italic = true;
+  if (style.underline === true) compacted.underline = true;
+  if (style.strikethrough === true) compacted.strikethrough = true;
+
+  return Object.keys(compacted).length > 0 ? compacted : null;
+}
+
+function getSideDefinitions_(spreadsheet, sideSheetName) {
+  var sheet = spreadsheet.getSheetByName(sideSheetName);
+  if (!sheet) {
+    return {};
+  }
+
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+  if (lastRow < 2 || lastColumn < 1) {
+    return {};
+  }
+
+  var range = sheet.getRange(1, 1, lastRow, lastColumn);
+  var values = range.getDisplayValues();
+  var backgrounds = range.getBackgrounds();
+  var fontColors = range.getFontColors();
+  var fontFamilies = range.getFontFamilies();
+  var fontSizes = range.getFontSizes();
+  var fontWeights = range.getFontWeights();
+  var fontStyles = range.getFontStyles();
+  var fontLines = range.getFontLines();
+  var richTextValues = range.getRichTextValues();
+  var headers = values[0].map(normalizeHeader_);
+
+  var idIndex = getHeaderIndex_(headers, ['id', 'key', 'side_id', 'number', 'no']);
+  var textIndex = getHeaderIndex_(headers, ['text', 'label', 'content', 'title']);
+  var heightIndex = getHeaderIndex_(headers, ['height', 'height_percent', 'percent', 'pct']);
+  var backgroundColorIndex = getHeaderIndex_(headers, [
+    'background_color',
+    'bg_color',
+    'background',
+    'bg',
+  ]);
+  var textColorIndex = getHeaderIndex_(headers, [
+    'text_color',
+    'font_color',
+    'foreground_color',
+    'foreground',
+  ]);
+  var fontFamilyIndex = getHeaderIndex_(headers, ['font_family', 'font']);
+  var fontSizeIndex = getHeaderIndex_(headers, ['font_size', 'text_size']);
+
+  if (idIndex < 0 || textIndex < 0 || heightIndex < 0) {
+    return {};
+  }
+
+  var definitions = {};
+
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    var id = String(values[rowIndex][idIndex] || '').trim();
+    if (!id) {
+      continue;
+    }
+
+    var text = String(values[rowIndex][textIndex] || '').trim();
+    var height = parsePositiveNumber_(values[rowIndex][heightIndex]);
+    var textCellStyle = extractCellStyle_({
+      backgroundColor: backgrounds[rowIndex][textIndex],
+      textColor: fontColors[rowIndex][textIndex],
+      fontFamily: fontFamilies[rowIndex][textIndex],
+      fontSize: fontSizes[rowIndex][textIndex],
+      fontWeight: fontWeights[rowIndex][textIndex],
+      fontStyle: fontStyles[rowIndex][textIndex],
+      fontLine: fontLines[rowIndex][textIndex],
+    });
+    var textRuns = extractRuns(richTextValues[rowIndex][textIndex], textCellStyle);
+    var baseStyle = compactStyle_(textCellStyle) || {};
+
+    if (backgroundColorIndex >= 0) {
+      var backgroundColor = String(values[rowIndex][backgroundColorIndex] || '').trim();
+      if (backgroundColor) {
+        baseStyle.backgroundColor = backgroundColor;
+      }
+    }
+
+    if (textColorIndex >= 0) {
+      var textColor = String(values[rowIndex][textColorIndex] || '').trim();
+      if (textColor) {
+        baseStyle.textColor = textColor;
+      }
+    }
+
+    if (fontFamilyIndex >= 0) {
+      var fontFamily = String(values[rowIndex][fontFamilyIndex] || '').trim();
+      if (fontFamily) {
+        baseStyle.fontFamily = fontFamily;
+      }
+    }
+
+    if (fontSizeIndex >= 0) {
+      var fontSize = parsePositiveNumber_(values[rowIndex][fontSizeIndex]);
+      if (fontSize) {
+        baseStyle.fontSize = fontSize;
+      }
+    }
+
+    definitions[id] = {
+      id: id,
+      text: text,
+      textRuns: textRuns.length > 0 ? textRuns : undefined,
+      height: height || undefined,
+      backgroundColor: baseStyle.backgroundColor || undefined,
+      textColor: baseStyle.textColor || undefined,
+      fontFamily: baseStyle.fontFamily || undefined,
+      fontSize: baseStyle.fontSize || undefined,
+      bold: baseStyle.bold === true ? true : undefined,
+      italic: baseStyle.italic === true ? true : undefined,
+      underline: baseStyle.underline === true ? true : undefined,
+      strikethrough: baseStyle.strikethrough === true ? true : undefined,
+    };
+  }
+
+  return definitions;
 }
 
 function getSettings_(spreadsheet, settingsSheetName) {

@@ -33,6 +33,23 @@ export type RenderSettings = {
 
 export type ImageSources = Record<string, string>
 
+export type SideBlockDefinition = {
+  id: string
+  text: string
+  textRuns?: RichTextRun[]
+  height?: number
+  backgroundColor?: string
+  textColor?: string
+  fontFamily?: string
+  fontSize?: number
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+}
+
+export type SideBlockDefinitions = Record<string, SideBlockDefinition>
+
 export type SheetRecord = {
   rowNumber: number
   order: number
@@ -69,6 +86,7 @@ export type FormatResult = {
   spreads: PrintSpread[]
   warnings: string[]
   settings?: RenderSettings
+  sideDefinitions?: SideBlockDefinitions
 }
 
 type RowSeed = {
@@ -99,6 +117,7 @@ type AppsScriptRow = Record<string, unknown> & {
 type AppsScriptPayload = {
   rows?: unknown
   settings?: unknown
+  sideDefinitions?: unknown
 }
 
 const fieldAliases = {
@@ -311,6 +330,70 @@ function parseRichTextRuns(value: unknown): RichTextRun[] | undefined {
   return runs.length > 0 ? runs : undefined
 }
 
+function parseSideBlockDefinitions(value: unknown): SideBlockDefinitions | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+  const definitions: SideBlockDefinitions = {}
+
+  for (const [id, entry] of entries) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+
+    const record = entry as Record<string, unknown>
+    const text = toStringValue(record.text).trim()
+    const textRuns = parseRichTextRuns(record.textRuns ?? record.text_runs)
+    const height = sanitizeFontSize(record.height)
+    const backgroundColor = sanitizeColor(record.backgroundColor)
+    const textColor = sanitizeColor(record.textColor)
+    const fontFamily = sanitizeFontFamily(record.fontFamily)
+    const fontSize = sanitizeFontSize(record.fontSize)
+    const bold = sanitizeBoolean(record.bold)
+    const italic = sanitizeBoolean(record.italic)
+    const underline = sanitizeBoolean(record.underline)
+    const strikethrough =
+      sanitizeBoolean(record.strikethrough) ??
+      sanitizeBoolean(record.strikeThrough) ??
+      sanitizeBoolean(record.strike_through)
+
+    if (
+      !text &&
+      !textRuns &&
+      height === undefined &&
+      !backgroundColor &&
+      !textColor &&
+      !fontFamily &&
+      fontSize === undefined &&
+      bold === undefined &&
+      italic === undefined &&
+      underline === undefined &&
+      strikethrough === undefined
+    ) {
+      continue
+    }
+
+    definitions[id] = {
+      id,
+      text,
+      textRuns,
+      height,
+      backgroundColor,
+      textColor,
+      fontFamily,
+      fontSize,
+      bold,
+      italic,
+      underline,
+      strikethrough,
+    }
+  }
+
+  return Object.keys(definitions).length > 0 ? definitions : undefined
+}
+
 function orderChunks<T>(items: T[], size: number) {
   const chunks: T[][] = []
 
@@ -393,6 +476,7 @@ function buildResultFromSeeds(
   rawRows: string[][],
   seeds: RowSeed[],
   settings?: RenderSettings,
+  sideDefinitions?: SideBlockDefinitions,
 ): FormatResult {
   const warnings: string[] = []
   const orderMap = new Map<number, SheetRecord>()
@@ -463,6 +547,7 @@ function buildResultFromSeeds(
     spreads,
     warnings,
     settings,
+    sideDefinitions,
   }
 }
 
@@ -566,6 +651,7 @@ export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
     throw new Error('Apps Script response must have a rows array.')
   }
   const settings = parseRenderSettings(container.settings)
+  const sideDefinitions = parseSideBlockDefinitions(container.sideDefinitions)
 
   const seeds = rows.map((entry, index) => {
     const source = entry && typeof entry === 'object' ? (entry as AppsScriptRow) : {}
@@ -600,7 +686,7 @@ export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
     } satisfies RowSeed
   })
 
-  return buildResultFromSeeds([], seeds, settings)
+  return buildResultFromSeeds([], seeds, settings, sideDefinitions)
 }
 
 export const defaultSheetSource =
@@ -625,12 +711,41 @@ export const sampleAppsScriptResponse = {
     step_font_scale: 4,
     body_font_scale: 2.5,
   },
+  sideDefinitions: {
+    '1': {
+      id: '1',
+      text: '転換\n1',
+      height: 12,
+      backgroundColor: '#d94b67',
+      textColor: '#ffffff',
+      fontFamily: 'Noto Serif JP',
+      bold: true,
+    },
+    '2': {
+      id: '2',
+      text: '転換\n2',
+      height: 12,
+      backgroundColor: '#1f78c8',
+      textColor: '#ffffff',
+      fontFamily: 'Noto Serif JP',
+      bold: true,
+    },
+    '3': {
+      id: '3',
+      text: '転換\n3',
+      height: 12,
+      backgroundColor: '#54a33f',
+      textColor: '#ffffff',
+      fontFamily: 'Noto Serif JP',
+      bold: true,
+    },
+  },
   rows: [
     {
       order: 1,
       page_no: '1',
       step: '全体目次',
-      side: '1st',
+      side: '1,2,3',
       body: '1st STEP\n赤のページへ',
       image: '',
       stepStyle: {
@@ -660,7 +775,7 @@ export const sampleAppsScriptResponse = {
       order: 2,
       page_no: '2',
       step: '1st-1',
-      side: '1st',
+      side: '2,3',
       body: '謎ID:001のヒント\nイラストのルールを見るページです。',
       image: '',
       stepStyle: {
@@ -686,7 +801,7 @@ export const sheetColumnGuide = [
   ['order', 'Required. Real sequence number used for print layout. Blank rows are ignored.'],
   ['page_no', 'Display page number. This does not control sorting.'],
   ['step', 'Top label of the page.'],
-  ['side', 'Side label text shown temporarily on the page.'],
+  ['side', 'Comma-separated SIDE block ids such as 1,2,3. These ids are resolved from the separate side sheet when using Apps Script.'],
   ['body', 'Free text body. Use {{image}}, {{image:2}}, {{image:3}} for single images, or {{images:1,2,3}} for one horizontal row of multiple images.'],
   ['image', 'Primary image URL, Google Drive share link, or linked cell.'],
   ['image_2', 'Optional second image source. Also supports image_3, image_4, and so on.'],

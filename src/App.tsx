@@ -13,6 +13,8 @@ import {
   type ImageSources,
   type RenderSettings,
   type RichTextRun,
+  type SideBlockDefinition,
+  type SideBlockDefinitions,
 } from './lib/hintbook'
 
 const defaultAppsScriptSource =
@@ -670,14 +672,149 @@ function BodyTextBlock({
   )
 }
 
+type ResolvedSideBlock = {
+  definition: SideBlockDefinition
+  height: number
+}
+
+function parseSideReferences(value?: string) {
+  if (!value) {
+    return []
+  }
+
+  return value
+    .split(/[,\n\r\u3001\uFF0C\s]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+function resolveSideBlocks(
+  sideValue: string | undefined,
+  sideDefinitions?: SideBlockDefinitions,
+): ResolvedSideBlock[] {
+  if (!sideDefinitions) {
+    return []
+  }
+
+  const definitions = parseSideReferences(sideValue)
+    .map((id) => sideDefinitions[id])
+    .filter((definition): definition is SideBlockDefinition => Boolean(definition))
+
+  if (definitions.length === 0) {
+    return []
+  }
+
+  const specifiedHeight = definitions.reduce(
+    (total, definition) => total + (definition.height ?? 0),
+    0,
+  )
+  const missingHeightCount = definitions.filter(
+    (definition) => definition.height === undefined,
+  ).length
+
+  if (specifiedHeight > 100) {
+    return definitions
+      .map((definition) => ({
+        definition,
+        height: ((definition.height ?? 0) / specifiedHeight) * 100,
+      }))
+      .filter((entry) => entry.height > 0)
+  }
+
+  const remainingHeight = Math.max(100 - specifiedHeight, 0)
+  const defaultHeight = missingHeightCount > 0 ? remainingHeight / missingHeightCount : 0
+
+  return definitions.map((definition) => ({
+    definition,
+    height: definition.height ?? defaultHeight,
+  }))
+}
+
+function PageSideLabel({
+  page,
+  position,
+  defaultFontFamily,
+  sideDefinitions,
+}: {
+  page: FormattedPage | null
+  position: 'left' | 'right'
+  defaultFontFamily?: string
+  sideDefinitions?: SideBlockDefinitions
+}) {
+  const resolvedSideBlocks = resolveSideBlocks(page?.side, sideDefinitions)
+
+  if (!page) {
+    return <div className={`pageSideLabel pageSideLabel-${position}`} />
+  }
+
+  if (resolvedSideBlocks.length === 0) {
+    return (
+      <div className={`pageSideLabel pageSideLabel-${position}`}>
+        <div
+          className={`pageSideFallback pageSideFallback-${position}`}
+          style={{ fontFamily: defaultFontFamily }}
+        >
+          {page.side || ''}
+        </div>
+      </div>
+    )
+  }
+
+  const totalHeight = resolvedSideBlocks.reduce((sum, block) => sum + block.height, 0)
+  const remainingHeight = Math.max(100 - totalHeight, 0)
+
+  return (
+    <div className={`pageSideLabel pageSideLabel-${position}`}>
+      <div className="pageSideBlocks">
+        {resolvedSideBlocks.map(({ definition, height }, blockIndex) => (
+          (() => {
+            const effectiveSideFontFamily = defaultFontFamily ?? definition.fontFamily
+
+            return (
+          <div
+            key={`${definition.id}-${blockIndex}`}
+            className="pageSideBlock"
+            style={{
+              flex: `0 0 ${height}%`,
+              backgroundColor: definition.backgroundColor,
+            }}
+          >
+            <div className="pageSideBlockContent">
+              <RichText
+                runs={definition.textRuns}
+                fallback={definition.text}
+                className={`pageSideBlockText pageSideBlockText-${position}`}
+                multiplier={1}
+                defaultFontFamily={effectiveSideFontFamily}
+                cellFontFamily={effectiveSideFontFamily}
+                baseFontSize={definition.fontSize}
+                baseTextColor={
+                  definition.textColor ?? (definition.backgroundColor ? '#ffffff' : undefined)
+                }
+              />
+            </div>
+          </div>
+            )
+          })()
+        ))}
+        {remainingHeight > 0 ? (
+          <div className="pageSideBlockSpacer" style={{ flex: `0 0 ${remainingHeight}%` }} />
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 function PagePreview({
   page,
   position,
   settings,
+  sideDefinitions,
 }: {
   page: FormattedPage | null
   position: 'left' | 'right'
   settings?: RenderSettings
+  sideDefinitions?: SideBlockDefinitions
 }) {
   const stepStyle = page?.stepStyle
   const bodyStyle = page?.bodyStyle
@@ -715,9 +852,6 @@ function PagePreview({
     ]
       .filter(Boolean)
       .join(' ') || undefined,
-  }
-  const sideLabelStyle = {
-    fontFamily: sideFontFamily,
   }
   const pageNumberStyle = {
     fontFamily: pageNoFontFamily,
@@ -773,12 +907,12 @@ function PagePreview({
           omitFontFamily
         />
       </div>
-      <div
-        className={`pageSideLabel pageSideLabel-${position}`}
-        style={sideLabelStyle}
-      >
-        {page.side || ''}
-      </div>
+      <PageSideLabel
+        page={page}
+        position={position}
+        defaultFontFamily={sideFontFamily}
+        sideDefinitions={sideDefinitions}
+      />
       <div className={`pageBody pageBody-${position}`} style={bodyBlockStyle}>
         <div className="pageBodyContent">
           {bodyContentItems.map((item, itemIndex) =>
@@ -1031,7 +1165,16 @@ function App() {
           </p>
           <p className="note">
             Apps Script route can also read the step cell background color, text color,
-            and font family.
+            and font family, plus shared SIDE blocks from a separate side sheet.
+          </p>
+          <p className="note">
+            Use the <code>settings</code> sheet to set shared fonts like{' '}
+            <code>step_font_family</code>, <code>body_font_family</code>, and{' '}
+            <code>side_font_family</code>.
+          </p>
+          <p className="note">
+            Put ids like <code>1,2,3</code> in <code>side</code>. When using Apps
+            Script, those ids are resolved from the separate <code>side</code> sheet.
           </p>
           <p className="note">
             <code>image</code> accepts Google Drive share links and regular image URLs.
@@ -1113,11 +1256,13 @@ function App() {
                   page={spread.leftPage}
                   position="left"
                   settings={result?.settings}
+                  sideDefinitions={result?.sideDefinitions}
                 />
                 <PagePreview
                   page={spread.rightPage}
                   position="right"
                   settings={result?.settings}
+                  sideDefinitions={result?.sideDefinitions}
                 />
             </ResponsiveSheetCanvas>
           </section>

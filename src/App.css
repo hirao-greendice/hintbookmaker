@@ -197,16 +197,12 @@ pre {
   bottom: 0;
   width: 40px;
   background: #efefef;
-  padding: 12px 6px;
-  text-align: center;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  font-weight: 700;
-  align-self: stretch;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
   box-sizing: border-box;
+  overflow: hidden;
+  font-weight: 700;
 }
 
 .pageSideLabel-left {
@@ -217,6 +213,86 @@ pre {
 .pageSideLabel-right {
   left: 0;
   border-right: 1px solid #cfcfcf;
+}
+
+.pageSideFallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: pre-line;
+  line-height: 1;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.pageSideFallback-left {
+}
+
+.pageSideFallback-right {
+}
+
+.pageSideBlocks {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: #6f6f6f;
+}
+
+.pageSideBlock {
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 2px 1px;
+  position: relative;
+  z-index: 1;
+}
+
+.pageSideBlocks > .pageSideBlock + .pageSideBlock,
+.pageSideBlocks > .pageSideBlock + .pageSideBlockSpacer,
+.pageSideBlocks > .pageSideBlockSpacer + .pageSideBlock,
+.pageSideBlocks > .pageSideBlockSpacer + .pageSideBlockSpacer {
+  margin-top: -1px;
+}
+
+.pageSideBlockContent {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pageSideBlockText {
+  display: block;
+  width: 100%;
+  text-align: center;
+  white-space: pre-line;
+  line-height: 0.95;
+  letter-spacing: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.pageSideBlockText-left {
+}
+
+.pageSideBlockText-right {
+}
+
+.pageSideBlockSpacer {
+  min-height: 0;
+  background: #6f6f6f;
+  position: relative;
+  z-index: 0;
 }
 
 .pageBody {
