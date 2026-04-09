@@ -1,73 +1,40 @@
-# React + TypeScript + Vite
+# Hint Book Formatter
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Hint Book Formatter is a Vite + React app that reads data from Google Sheets or an Apps Script endpoint and renders print spreads plus booklet-order previews.
 
-Currently, two official plugins are available:
+## Local Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Build
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
 ```
+
+Production builds use relative asset paths so the app works on GitHub Pages even when it is served from a repository subpath.
+
+## Publish To GitHub Pages
+
+1. Push this repository to GitHub.
+2. Open `Settings` > `Pages`.
+3. Set `Source` to `GitHub Actions`.
+4. Push to `main` and `.github/workflows/deploy-pages.yml` will build and deploy the site.
+
+The published URL is usually `https://<account>.github.io/<repository>/`.
+
+## Deployment Notes
+
+- If you load CSV data directly from Google Sheets, the sheet must be readable from each employee's browser.
+- If you load data from Apps Script, the web app deployment and its CORS behavior must allow browser access.
+- GitHub Pages visibility depends on your GitHub plan and repository visibility settings.
+
+## Scripts
+
+- `npm run dev`: start the dev server
+- `npm run build`: run TypeScript checks and create a production build
+- `npm run preview`: preview the production build locally
+- `npm run lint`: run ESLint
