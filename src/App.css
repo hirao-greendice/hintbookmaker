@@ -384,13 +384,6 @@ pre {
   z-index: 1;
 }
 
-.pageSideBlocks > .pageSideBlock + .pageSideBlock,
-.pageSideBlocks > .pageSideBlock + .pageSideBlockSpacer,
-.pageSideBlocks > .pageSideBlockSpacer + .pageSideBlock,
-.pageSideBlocks > .pageSideBlockSpacer + .pageSideBlockSpacer {
-  margin-top: -1px;
-}
-
 .pageSideBlockContent {
   width: 100%;
   display: flex;
