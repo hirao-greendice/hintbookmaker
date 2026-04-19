@@ -1589,7 +1589,7 @@ function App() {
           <summary>詳細</summary>
 
           <p className="note">
-            CSV columns: <code>order, page_no, step, side, body, image</code>
+            CSV columns: <code>order, page_no, step, side, body, image_1</code>
           </p>
           <p className="note">
             Apps Script route can also read the step cell background color, text color,
@@ -1605,7 +1605,8 @@ function App() {
             Script, those ids are resolved from the separate <code>side</code> sheet.
           </p>
           <p className="note">
-            <code>image</code> accepts Google Drive share links and regular image URLs.
+            <code>image_1</code> accepts Google Drive share links and regular image URLs.
+            Legacy column name <code>image</code> is also supported.
           </p>
           <p className="note">
             Put <code>{'{{image}}'}</code> inside <code>body</code> to place the image

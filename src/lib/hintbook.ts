@@ -131,7 +131,7 @@ const fieldAliases = {
   step: ['step', 'stage', 'section'],
   side: ['side', 'label', 'side_label'],
   body: ['body', 'text', 'content'],
-  image: ['image', 'image_key', 'image_url'],
+  image: ['image_1', 'image', 'image_key', 'image_url'],
   imagePosition: ['image_position', 'image_pos', 'image_place'],
   imageWidth: ['image_width', 'image_w'],
   imageHeight: ['image_height', 'image_h'],
@@ -157,6 +157,11 @@ function normalizeHeader(value: string) {
 
 function aliasToField(header: string) {
   const normalized = normalizeHeader(header)
+
+  if (getImageFieldIndex(normalized) === '1') {
+    return 'image'
+  }
+
   const entries = Object.entries(fieldAliases) as Array<
     [keyof typeof fieldAliases, readonly string[]]
   >
@@ -722,7 +727,7 @@ export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
 export const defaultSheetSource =
   'https://docs.google.com/spreadsheets/d/1d4XuVJPSy579inDl082_Qr84CHU5rFpcnx0kSwiblg4/edit?usp=sharing'
 
-export const sampleCsv = `order,page_no,step,side,body,image
+export const sampleCsv = `order,page_no,step,side,body,image_1
 1,1,全体目次,1st,"1st STEP
 赤のページへ",
 2,2,1st-1,1st,"謎ID:001のヒント
@@ -833,7 +838,7 @@ export const sheetColumnGuide = [
   ['step', 'Top label of the page.'],
   ['side', 'Comma-separated SIDE block ids such as 1,2,3. These ids are resolved from the separate side sheet when using Apps Script.'],
   ['body', 'Free text body. Use {{image}}, {{image:2}}, {{image:3}} for single images, or {{images:1,2,3}} for one horizontal row of multiple images.'],
-  ['image', 'Primary image URL, Google Drive share link, or linked cell.'],
+  ['image_1', 'Primary image URL, Google Drive share link, or linked cell. Legacy column name image is also supported.'],
   ['image_2', 'Optional second image source. Also supports image_3, image_4, and so on.'],
   ['image_position', 'Optional fallback. top or bottom. Used only when BODY does not contain {{image}}.'],
   ['image_width', 'Optional. CSS width such as 160px or 60%. Numbers are treated as px.'],
