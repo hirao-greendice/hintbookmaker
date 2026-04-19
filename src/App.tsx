@@ -757,7 +757,6 @@ function runStyle(
     fontWeight: run.bold === undefined ? undefined : run.bold ? '700' : '400',
     fontStyle: run.italic === undefined ? undefined : run.italic ? 'italic' : 'normal',
     textDecoration: resolveTextDecoration(run.underline, run.strikethrough),
-    borderRadius: run.backgroundColor ? '0.2em' : undefined,
     padding: run.backgroundColor ? '0.02em 0.18em' : undefined,
   }
 }
