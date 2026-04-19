@@ -488,6 +488,10 @@ pre {
   max-height: 45%;
 }
 
+.pageImageFrame-compactPortrait {
+  max-height: 62%;
+}
+
 .pageImageRow {
   width: 100%;
   display: flex;

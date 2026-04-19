@@ -351,10 +351,22 @@ function parseSideBlockDefinitions(value: unknown): SideBlockDefinitions | undef
     const text = toStringValue(record.text).trim()
     const textRuns = parseRichTextRuns(record.textRuns ?? record.text_runs)
     const height = sanitizeFontSize(record.height)
-    const backgroundColor = sanitizeColor(record.backgroundColor)
-    const textColor = sanitizeColor(record.textColor)
-    const fontFamily = sanitizeFontFamily(record.fontFamily)
-    const fontSize = sanitizeFontSize(record.fontSize)
+    const backgroundColor =
+      sanitizeColor(record.backgroundColor) ??
+      sanitizeColor(record.background_color) ??
+      sanitizeColor(record.bgColor) ??
+      sanitizeColor(record.bg_color)
+    const textColor =
+      sanitizeColor(record.textColor) ??
+      sanitizeColor(record.text_color) ??
+      sanitizeColor(record.fontColor) ??
+      sanitizeColor(record.font_color)
+    const fontFamily =
+      sanitizeFontFamily(record.fontFamily) ??
+      sanitizeFontFamily(record.font_family)
+    const fontSize =
+      sanitizeFontSize(record.fontSize) ??
+      sanitizeFontSize(record.font_size)
     const bold = sanitizeBoolean(record.bold)
     const italic = sanitizeBoolean(record.italic)
     const underline = sanitizeBoolean(record.underline)

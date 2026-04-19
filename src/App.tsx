@@ -699,6 +699,26 @@ function RichText({
   )
 }
 
+function buildSideFallbackRuns(definition: SideBlockDefinition) {
+  if (definition.textRuns && definition.textRuns.length > 0) {
+    return definition.textRuns
+  }
+
+  if (!definition.text) {
+    return undefined
+  }
+
+  return [
+    {
+      text: definition.text,
+      bold: definition.bold,
+      italic: definition.italic,
+      underline: definition.underline,
+      strikethrough: definition.strikethrough,
+    },
+  ]
+}
+
 function PageImage({
   source,
   width,
@@ -714,16 +734,20 @@ function PageImage({
   fit?: string
   compact?: boolean
 }) {
-  const [failed, setFailed] = useState(false)
+  const [failedSource, setFailedSource] = useState<string | null>(null)
+  const [portraitSource, setPortraitSource] = useState<string | null>(null)
   const resolvedSource = resolveImageSource(source)
+  const isPortrait = resolvedSource !== null && portraitSource === resolvedSource
 
-  if (!resolvedSource || failed) {
+  if (!resolvedSource || failedSource === resolvedSource) {
     return null
   }
 
   return (
     <div
-      className={`pageImageFrame${compact ? ' pageImageFrame-compact' : ''}`}
+      className={`pageImageFrame${compact ? ' pageImageFrame-compact' : ''}${
+        compact && isPortrait ? ' pageImageFrame-compactPortrait' : ''
+      }`}
       style={{ justifyContent: resolveImageAlign(align) }}
     >
       <img
@@ -737,7 +761,13 @@ function PageImage({
           height: normalizeCssSize(height),
           objectFit: resolveImageFit(fit),
         }}
-        onError={() => setFailed(true)}
+        onLoad={(event) => {
+          const image = event.currentTarget
+          setPortraitSource(
+            image.naturalHeight > image.naturalWidth * 1.05 ? resolvedSource : null,
+          )
+        }}
+        onError={() => setFailedSource(resolvedSource)}
       />
     </div>
   )
@@ -962,8 +992,8 @@ function PageSideLabel({
           >
             <div className="pageSideBlockContent">
               <RichText
-                runs={definition.textRuns}
-                fallback={definition.text}
+                runs={buildSideFallbackRuns(definition)}
+                fallback=""
                 className={`pageSideBlockText pageSideBlockText-${position}`}
                 multiplier={1}
                 defaultFontFamily={effectiveSideFontFamily}
