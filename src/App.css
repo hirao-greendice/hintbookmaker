@@ -355,11 +355,11 @@ pre {
   overflow-wrap: anywhere;
 }
 
-.pageSideFallback-left {
+/* .pageSideFallback-left {
 }
 
 .pageSideFallback-right {
-}
+} */
 
 .pageSideBlocks {
   width: 100%;
@@ -402,11 +402,11 @@ pre {
   overflow-wrap: normal;
 }
 
-.pageSideBlockText-left {
+/* .pageSideBlockText-left {
 }
 
 .pageSideBlockText-right {
-}
+} */
 
 .pageSideBlockSpacer {
   min-height: 0;
