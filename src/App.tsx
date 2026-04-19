@@ -24,6 +24,8 @@ const BASE_FONT_SIZE = 10
 const STEP_FONT_SCALE = 4
 const BODY_FONT_SCALE = 2.5
 const INLINE_IMAGE_TOKEN = /\{\{(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?\}\}/gi
+const INLINE_HIGHLIGHT_TOKEN = /\[\[(\/?)hl(?:\s*:\s*([^[\]]+))?\]\]/gi
+const DEFAULT_INLINE_HIGHLIGHT_COLOR = '#fff2a8'
 const SHEET_SOURCE_STORAGE_KEY = 'hintbookmaker.sheetSource'
 const APPS_SCRIPT_SOURCE_STORAGE_KEY = 'hintbookmaker.appsScriptSource'
 const SHEET_CANVAS_WIDTH = 1122
@@ -346,6 +348,32 @@ function cloneRunWithText(run: RichTextRun, text: string): RichTextRun {
   }
 }
 
+function runsHaveSameStyle(first: RichTextRun, second: RichTextRun) {
+  return (
+    first.backgroundColor === second.backgroundColor &&
+    first.textColor === second.textColor &&
+    first.fontFamily === second.fontFamily &&
+    first.fontSize === second.fontSize &&
+    first.bold === second.bold &&
+    first.italic === second.italic &&
+    first.underline === second.underline &&
+    first.strikethrough === second.strikethrough
+  )
+}
+
+function appendRuns(target: RichTextRun[], runs: RichTextRun[]) {
+  for (const run of runs) {
+    const lastRun = target[target.length - 1]
+
+    if (lastRun && runsHaveSameStyle(lastRun, run)) {
+      lastRun.text += run.text
+      continue
+    }
+
+    target.push({ ...run })
+  }
+}
+
 function sliceRunsByRange(
   runs: RichTextRun[],
   startIndex: number,
@@ -440,6 +468,63 @@ function trimTrailingLineBreak(runs: RichTextRun[]) {
 
   nextRuns.pop()
   return nextRuns
+}
+
+function resolveInlineHighlightColor(value?: string) {
+  const trimmed = value?.trim()
+  return trimmed || DEFAULT_INLINE_HIGHLIGHT_COLOR
+}
+
+function applyInlineHighlights(sourceRuns: RichTextRun[]) {
+  if (sourceRuns.length === 0) {
+    return sourceRuns
+  }
+
+  const fullText = sourceRuns.map((run) => run.text).join('')
+  if (!fullText.includes('[[hl')) {
+    return sourceRuns
+  }
+
+  const highlightedRuns: RichTextRun[] = []
+  const activeHighlightColors: string[] = []
+  let cursor = 0
+
+  INLINE_HIGHLIGHT_TOKEN.lastIndex = 0
+  let match = INLINE_HIGHLIGHT_TOKEN.exec(fullText)
+
+  while (match) {
+    const matchStart = match.index
+    const matchEnd = matchStart + match[0].length
+
+    if (cursor < matchStart) {
+      const textRuns = sliceRunsByRange(sourceRuns, cursor, matchStart).map((run) => ({
+        ...run,
+        backgroundColor:
+          activeHighlightColors[activeHighlightColors.length - 1] ?? run.backgroundColor,
+      }))
+      appendRuns(highlightedRuns, textRuns)
+    }
+
+    if (match[1] === '/') {
+      activeHighlightColors.pop()
+    } else {
+      activeHighlightColors.push(resolveInlineHighlightColor(match[2]))
+    }
+
+    cursor = matchEnd
+    match = INLINE_HIGHLIGHT_TOKEN.exec(fullText)
+  }
+
+  if (cursor < fullText.length) {
+    const textRuns = sliceRunsByRange(sourceRuns, cursor, fullText.length).map((run) => ({
+      ...run,
+      backgroundColor:
+        activeHighlightColors[activeHighlightColors.length - 1] ?? run.backgroundColor,
+    }))
+    appendRuns(highlightedRuns, textRuns)
+  }
+
+  return highlightedRuns
 }
 
 function applyInlineImageOption(
@@ -547,7 +632,8 @@ function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContent
     return []
   }
 
-  const fullText = sourceRuns.map((run) => run.text).join('')
+  const normalizedRuns = applyInlineHighlights(sourceRuns)
+  const fullText = normalizedRuns.map((run) => run.text).join('')
   const items: BodyContentItem[] = []
   let cursor = 0
   let shouldTrimLeadingBreak = false
@@ -560,7 +646,7 @@ function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContent
     const matchEnd = matchStart + match[0].length
 
     if (cursor < matchStart) {
-      let textRuns = sliceRunsByRange(sourceRuns, cursor, matchStart)
+      let textRuns = sliceRunsByRange(normalizedRuns, cursor, matchStart)
       if (shouldTrimLeadingBreak) {
         textRuns = trimLeadingLineBreak(textRuns)
       }
@@ -598,7 +684,7 @@ function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContent
   }
 
   if (cursor < fullText.length) {
-    let textRuns = sliceRunsByRange(sourceRuns, cursor, fullText.length)
+    let textRuns = sliceRunsByRange(normalizedRuns, cursor, fullText.length)
     if (shouldTrimLeadingBreak) {
       textRuns = trimLeadingLineBreak(textRuns)
     }
@@ -662,6 +748,7 @@ function runStyle(
   },
 ) {
   return {
+    backgroundColor: run.backgroundColor,
     color: run.textColor ?? options.baseTextColor,
     fontFamily: options.omitFontFamily
       ? undefined
@@ -670,6 +757,8 @@ function runStyle(
     fontWeight: run.bold === undefined ? undefined : run.bold ? '700' : '400',
     fontStyle: run.italic === undefined ? undefined : run.italic ? 'italic' : 'normal',
     textDecoration: resolveTextDecoration(run.underline, run.strikethrough),
+    borderRadius: run.backgroundColor ? '0.2em' : undefined,
+    padding: run.backgroundColor ? '0.02em 0.18em' : undefined,
   }
 }
 
@@ -710,20 +799,23 @@ function RichText({
         return (
           <span
             key={`${runIndex}-${run.text}`}
-            style={runStyle(run, multiplier, {
-              defaultFontFamily,
-              cellFontFamily,
-              baseFontSize,
-              baseTextColor,
-              omitFontFamily,
-            })}
           >
-            {parts.map((part, partIndex) => (
-              <span key={`${runIndex}-${partIndex}`}>
-                {part}
-                {partIndex < parts.length - 1 ? <br /> : null}
-              </span>
-            ))}
+            {(() => {
+              const style = runStyle(run, multiplier, {
+                defaultFontFamily,
+                cellFontFamily,
+                baseFontSize,
+                baseTextColor,
+                omitFontFamily,
+              })
+
+              return parts.map((part, partIndex) => (
+                <span key={`${runIndex}-${partIndex}`} style={style}>
+                  {part}
+                  {partIndex < parts.length - 1 ? <br /> : null}
+                </span>
+              ))
+            })()}
           </span>
         )
       })}
@@ -1521,6 +1613,10 @@ function App() {
             between text blocks. Use <code>{'{{image:2}}'}</code> for <code>image_2</code>.
             Use <code>{'{{images:1,2,3}}'}</code> to place multiple images in one row.
             Example: <code>{'{{images:1,2 width1=220px width2=120px align=center}}'}</code>
+          </p>
+          <p className="note">
+            Use <code>{'[[hl]]text[[/hl]]'}</code> for a yellow highlight, or{' '}
+            <code>{'[[hl:#ffd7a8]]text[[/hl]]'}</code> for a custom color.
           </p>
           <p className="note">
             PDF export uses the browser print dialog. Select <code>Save as PDF</code>.

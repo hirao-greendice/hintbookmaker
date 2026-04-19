@@ -13,6 +13,7 @@ export type StepStyle = {
 
 export type RichTextRun = {
   text: string
+  backgroundColor?: string
   textColor?: string
   fontFamily?: string
   fontSize?: number
@@ -313,6 +314,8 @@ function parseRichTextRuns(value: unknown): RichTextRun[] | undefined {
 
     runs.push({
       text,
+      backgroundColor:
+        sanitizeColor(record.backgroundColor) ?? sanitizeColor(record.background_color),
       textColor:
         sanitizeColor(record.textColor) ?? sanitizeColor(record.text_color),
       fontFamily:
