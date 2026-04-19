@@ -30,13 +30,23 @@ const SHEET_CANVAS_WIDTH = 1122
 const SHEET_CANVAS_HEIGHT = 794
 
 type InlineImageOptions = {
-  imageKey?: string
-  imageKeys?: string[]
   source?: string
   width?: string
   height?: string
   align?: string
   fit?: string
+  imageKey?: string
+  imageKeys?: string[]
+  imageOptionsByKey?: Record<
+    string,
+    {
+      source?: string
+      width?: string
+      height?: string
+      align?: string
+      fit?: string
+    }
+  >
 }
 
 type BodyContentItem =
@@ -432,6 +442,24 @@ function trimTrailingLineBreak(runs: RichTextRun[]) {
   return nextRuns
 }
 
+function applyInlineImageOption(
+  options: Pick<InlineImageOptions, 'source' | 'width' | 'height' | 'align' | 'fit'>,
+  key: string,
+  value: string,
+) {
+  if (key === 'src' || key === 'source' || key === 'url') {
+    options.source = value
+  } else if (key === 'width' || key === 'w') {
+    options.width = value
+  } else if (key === 'height' || key === 'h') {
+    options.height = value
+  } else if (key === 'align') {
+    options.align = value
+  } else if (key === 'fit') {
+    options.fit = value
+  }
+}
+
 function parseInlineImageOptions(input?: string): InlineImageOptions {
   const options: InlineImageOptions = {}
   if (!input) {
@@ -452,18 +480,22 @@ function parseInlineImageOptions(input?: string): InlineImageOptions {
       continue
     }
 
-    if (key === 'src' || key === 'source' || key === 'url') {
-      options.source = rawValue
-    } else if (key === 'index' || key === 'image' || key === 'key') {
+    const perImageMatch = key.match(/^(src|source|url|width|w|height|h|align|fit)_?(\d+)$/)
+    if (perImageMatch) {
+      const imageKey = perImageMatch[2]
+      const imageOptions = options.imageOptionsByKey?.[imageKey] ?? {}
+      applyInlineImageOption(imageOptions, perImageMatch[1], rawValue)
+      options.imageOptionsByKey = {
+        ...(options.imageOptionsByKey ?? {}),
+        [imageKey]: imageOptions,
+      }
+      continue
+    }
+
+    if (key === 'index' || key === 'image' || key === 'key') {
       options.imageKey = rawValue
-    } else if (key === 'width' || key === 'w') {
-      options.width = rawValue
-    } else if (key === 'height' || key === 'h') {
-      options.height = rawValue
-    } else if (key === 'align') {
-      options.align = rawValue
-    } else if (key === 'fit') {
-      options.fit = rawValue
+    } else {
+      applyInlineImageOption(options, key, rawValue)
     }
   }
 
@@ -781,6 +813,7 @@ function PageImageRow({
   align,
   fit,
   compact,
+  imageOptionsByKey,
 }: {
   imageKeys?: string[]
   imageSources: ImageSources
@@ -789,6 +822,7 @@ function PageImageRow({
   align?: string
   fit?: string
   compact?: boolean
+  imageOptionsByKey?: InlineImageOptions['imageOptionsByKey']
 }) {
   const resolvedKeys = (imageKeys && imageKeys.length > 0
     ? imageKeys
@@ -801,18 +835,34 @@ function PageImageRow({
 
   return (
     <div className={`pageImageRow${compact ? ' pageImageRow-compact' : ''}`}>
-      {resolvedKeys.map((imageKey) => (
-        <div key={imageKey} className="pageImageRowItem">
+      {resolvedKeys.map((imageKey) => {
+        const itemOptions = imageOptionsByKey?.[imageKey]
+        const resolvedWidth = normalizeCssSize(itemOptions?.width ?? width)
+
+        return (
+        <div
+          key={imageKey}
+          className="pageImageRowItem"
+          style={
+            resolvedWidth
+              ? {
+                  flex: `0 0 ${resolvedWidth}`,
+                  width: resolvedWidth,
+                }
+              : undefined
+          }
+        >
           <PageImage
-            source={imageSources[imageKey]}
-            width={width}
-            height={height}
-            align={align}
-            fit={fit}
+            source={itemOptions?.source ?? imageSources[imageKey]}
+            width={itemOptions?.width ?? width}
+            height={itemOptions?.height ?? height}
+            align={itemOptions?.align ?? align}
+            fit={itemOptions?.fit ?? fit}
             compact={compact}
           />
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -1160,6 +1210,7 @@ function PagePreview({
                   align={item.options.align ?? page.imageAlign}
                   fit={item.options.fit ?? page.imageFit}
                   compact={hasBodyText}
+                  imageOptionsByKey={item.options.imageOptionsByKey}
                 />
               )
             ),
@@ -1454,7 +1505,7 @@ function App() {
             Put <code>{'{{image}}'}</code> inside <code>body</code> to place the image
             between text blocks. Use <code>{'{{image:2}}'}</code> for <code>image_2</code>.
             Use <code>{'{{images:1,2,3}}'}</code> to place multiple images in one row.
-            Example: <code>{'{{images:1,2 width=160px align=center}}'}</code>
+            Example: <code>{'{{images:1,2 width1=220px width2=120px align=center}}'}</code>
           </p>
           <p className="note">
             PDF export uses the browser print dialog. Select <code>Save as PDF</code>.
