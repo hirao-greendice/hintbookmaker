@@ -26,6 +26,7 @@ const BODY_FONT_SCALE = 2.5
 const INLINE_IMAGE_TOKEN = /\{\{(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?\}\}/gi
 const INLINE_HIGHLIGHT_TOKEN = /\[\[(\/?)hl(?:\s*:\s*([^[\]]+))?\]\]/gi
 const DEFAULT_INLINE_HIGHLIGHT_COLOR = '#fff2a8'
+const DRIVE_IMAGE_MAX_WIDTH = 4000
 const SHEET_SOURCE_STORAGE_KEY = 'hintbookmaker.sheetSource'
 const APPS_SCRIPT_SOURCE_STORAGE_KEY = 'hintbookmaker.appsScriptSource'
 const SHEET_CANVAS_WIDTH = 1122
@@ -252,7 +253,7 @@ function resolveImageSource(source?: string) {
 
   const driveFileId = extractGoogleDriveFileId(trimmed)
   if (driveFileId) {
-    return `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w1600`
+    return `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w${DRIVE_IMAGE_MAX_WIDTH}`
   }
 
   try {
