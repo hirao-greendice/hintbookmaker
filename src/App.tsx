@@ -751,6 +751,10 @@ function buildSideFallbackRuns(definition: SideBlockDefinition) {
   ]
 }
 
+function hasExplicitImageSize(width?: string, height?: string) {
+  return Boolean(normalizeCssSize(width) || normalizeCssSize(height))
+}
+
 function PageImage({
   source,
   width,
@@ -770,6 +774,7 @@ function PageImage({
   const [portraitSource, setPortraitSource] = useState<string | null>(null)
   const resolvedSource = resolveImageSource(source)
   const isPortrait = resolvedSource !== null && portraitSource === resolvedSource
+  const hasExplicitSize = hasExplicitImageSize(width, height)
 
   if (!resolvedSource || failedSource === resolvedSource) {
     return null
@@ -777,9 +782,9 @@ function PageImage({
 
   return (
     <div
-      className={`pageImageFrame${compact ? ' pageImageFrame-compact' : ''}${
-        compact && isPortrait ? ' pageImageFrame-compactPortrait' : ''
-      }`}
+      className={`pageImageFrame${
+        compact && !hasExplicitSize ? ' pageImageFrame-compact' : ''
+      }${compact && !hasExplicitSize && isPortrait ? ' pageImageFrame-compactPortrait' : ''}`}
       style={{ justifyContent: resolveImageAlign(align) }}
     >
       <img
@@ -828,13 +833,23 @@ function PageImageRow({
     ? imageKeys
     : sortedImageKeys(imageSources)
   ).filter((imageKey) => Boolean(imageSources[imageKey]))
+  const hasExplicitRowSize =
+    hasExplicitImageSize(width, height) ||
+    resolvedKeys.some((imageKey) =>
+      hasExplicitImageSize(
+        imageOptionsByKey?.[imageKey]?.width,
+        imageOptionsByKey?.[imageKey]?.height,
+      ),
+    )
 
   if (resolvedKeys.length === 0) {
     return null
   }
 
   return (
-    <div className={`pageImageRow${compact ? ' pageImageRow-compact' : ''}`}>
+    <div
+      className={`pageImageRow${compact && !hasExplicitRowSize ? ' pageImageRow-compact' : ''}`}
+    >
       {resolvedKeys.map((imageKey) => {
         const itemOptions = imageOptionsByKey?.[imageKey]
         const resolvedWidth = normalizeCssSize(itemOptions?.width ?? width)

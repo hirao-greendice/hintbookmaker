@@ -492,6 +492,8 @@ pre {
   justify-content: center;
   gap: 12px;
   min-width: 0;
+  flex: 0 0 auto;
+  overflow: hidden;
 }
 
 .pageImageRow-compact {
