@@ -298,6 +298,7 @@ pre {
   top: 0;
   left: 0;
   right: 0;
+  z-index: 2;
   height: 60px;
   padding: 8px 12px 10px;
   background: #d94b67;
@@ -322,6 +323,7 @@ pre {
   position: absolute;
   top: 60px;
   bottom: 0;
+  z-index: 1;
   width: 40px;
   background: #efefef;
   display: flex;
