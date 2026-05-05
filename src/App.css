@@ -394,6 +394,16 @@ pre {
   justify-content: center;
 }
 
+.pageSideBlockTextFrame {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .pageSideBlockText {
   display: block;
   width: 100%;
@@ -403,6 +413,22 @@ pre {
   letter-spacing: 0;
   word-break: normal;
   overflow-wrap: normal;
+}
+
+.pageSideBlockText-rotateCw,
+.pageSideBlockText-rotateCcw {
+  width: auto;
+  flex: 0 0 auto;
+  display: inline-block;
+  transform-origin: center center;
+}
+
+.pageSideBlockText-rotateCw {
+  transform: rotate(90deg);
+}
+
+.pageSideBlockText-rotateCcw {
+  transform: rotate(-90deg);
 }
 
 /* .pageSideBlockText-left {

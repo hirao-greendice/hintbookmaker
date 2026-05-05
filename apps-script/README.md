@@ -52,3 +52,20 @@ Recommended meaning:
 - `page_no_font_family`: font used for page numbers
 - `step_font_scale`: multiplier applied to spreadsheet font size for STEP
 - `body_font_scale`: multiplier applied to spreadsheet font size for BODY
+
+Optional: create a `side` sheet when you want to manage SIDE labels by id.
+
+Recommended columns:
+
+- `id`
+- `text`
+- `height`
+
+Optional text direction column:
+
+- `rotation` or `rotate`
+
+Supported values:
+
+- `90`, `90deg`, `cw`, `clockwise`
+- `-90`, `-90deg`, `ccw`, `counterclockwise`

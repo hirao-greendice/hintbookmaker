@@ -47,6 +47,7 @@ export type SideBlockDefinition = {
   italic?: boolean
   underline?: boolean
   strikethrough?: boolean
+  textRotation?: 'cw' | 'ccw'
 }
 
 export type SideBlockDefinitions = Record<string, SideBlockDefinition>
@@ -242,6 +243,35 @@ function sanitizeBoolean(value: unknown) {
   return undefined
 }
 
+function sanitizeSideTextRotation(value: unknown): SideBlockDefinition['textRotation'] {
+  const text = toStringValue(value).trim().toLowerCase()
+  if (!text) return undefined
+
+  if (
+    text === '90' ||
+    text === '90deg' ||
+    text === 'cw' ||
+    text === 'clockwise' ||
+    text === 'right'
+  ) {
+    return 'cw'
+  }
+
+  if (
+    text === '-90' ||
+    text === '-90deg' ||
+    text === '270' ||
+    text === '270deg' ||
+    text === 'ccw' ||
+    text === 'counterclockwise' ||
+    text === 'left'
+  ) {
+    return 'ccw'
+  }
+
+  return undefined
+}
+
 function parseStepStyle(value: unknown): StepStyle | undefined {
   if (!value || typeof value !== 'object') {
     return undefined
@@ -382,6 +412,11 @@ function parseSideBlockDefinitions(value: unknown): SideBlockDefinitions | undef
       sanitizeBoolean(record.strikethrough) ??
       sanitizeBoolean(record.strikeThrough) ??
       sanitizeBoolean(record.strike_through)
+    const textRotation =
+      sanitizeSideTextRotation(record.textRotation) ??
+      sanitizeSideTextRotation(record.text_rotation) ??
+      sanitizeSideTextRotation(record.rotation) ??
+      sanitizeSideTextRotation(record.rotate)
 
     if (
       !text &&
@@ -394,7 +429,8 @@ function parseSideBlockDefinitions(value: unknown): SideBlockDefinitions | undef
       bold === undefined &&
       italic === undefined &&
       underline === undefined &&
-      strikethrough === undefined
+      strikethrough === undefined &&
+      !textRotation
     ) {
       continue
     }
@@ -412,6 +448,7 @@ function parseSideBlockDefinitions(value: unknown): SideBlockDefinitions | undef
       italic,
       underline,
       strikethrough,
+      textRotation,
     }
   }
 

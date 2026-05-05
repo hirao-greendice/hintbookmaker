@@ -843,6 +843,18 @@ function buildSideFallbackRuns(definition: SideBlockDefinition) {
   ]
 }
 
+function resolveSideBlockTextRotationClass(definition: SideBlockDefinition) {
+  if (definition.textRotation === 'cw') {
+    return 'pageSideBlockText-rotateCw'
+  }
+
+  if (definition.textRotation === 'ccw') {
+    return 'pageSideBlockText-rotateCcw'
+  }
+
+  return ''
+}
+
 function hasExplicitImageSize(width?: string, height?: string) {
   return Boolean(normalizeCssSize(width) || normalizeCssSize(height))
 }
@@ -1137,6 +1149,7 @@ function PageSideLabel({
         {resolvedSideBlocks.map(({ definition, height }, blockIndex) => (
           (() => {
             const effectiveSideFontFamily = defaultFontFamily ?? definition.fontFamily
+            const sideTextRotationClass = resolveSideBlockTextRotationClass(definition)
 
             return (
           <div
@@ -1148,10 +1161,13 @@ function PageSideLabel({
             }}
           >
             <div className="pageSideBlockContent">
+              <div className="pageSideBlockTextFrame">
               <RichText
                 runs={buildSideFallbackRuns(definition)}
                 fallback=""
-                className={`pageSideBlockText pageSideBlockText-${position}`}
+                className={`pageSideBlockText pageSideBlockText-${position}${
+                  sideTextRotationClass ? ` ${sideTextRotationClass}` : ''
+                }`}
                 multiplier={1}
                 defaultFontFamily={effectiveSideFontFamily}
                 cellFontFamily={effectiveSideFontFamily}
@@ -1160,6 +1176,7 @@ function PageSideLabel({
                   definition.textColor ?? (definition.backgroundColor ? '#ffffff' : undefined)
                 }
               />
+              </div>
             </div>
           </div>
             )
@@ -1604,6 +1621,11 @@ function App() {
           <p className="note">
             Put ids like <code>1,2,3</code> in <code>side</code>. When using Apps
             Script, those ids are resolved from the separate <code>side</code> sheet.
+          </p>
+          <p className="note">
+            Use <code>rotation</code> or <code>rotate</code> in the <code>side</code>{' '}
+            sheet for SIDE text direction. Supported values include <code>90</code>,{' '}
+            <code>-90</code>, <code>cw</code>, and <code>ccw</code>.
           </p>
           <p className="note">
             <code>image_1</code> accepts Google Drive share links and regular image URLs.

@@ -256,6 +256,37 @@ function parsePositiveNumber_(value) {
   return isFinite(parsed) && parsed > 0 ? parsed : '';
 }
 
+function parseSideTextRotation_(value) {
+  var text = String(value || '').trim().toLowerCase();
+  if (!text) {
+    return '';
+  }
+
+  if (
+    text === '90' ||
+    text === '90deg' ||
+    text === 'cw' ||
+    text === 'clockwise' ||
+    text === 'right'
+  ) {
+    return 'cw';
+  }
+
+  if (
+    text === '-90' ||
+    text === '-90deg' ||
+    text === '270' ||
+    text === '270deg' ||
+    text === 'ccw' ||
+    text === 'counterclockwise' ||
+    text === 'left'
+  ) {
+    return 'ccw';
+  }
+
+  return '';
+}
+
 function compactStyle_(style) {
   if (!style) {
     return null;
@@ -315,6 +346,12 @@ function getSideDefinitions_(spreadsheet, sideSheetName) {
   ]);
   var fontFamilyIndex = getHeaderIndex_(headers, ['font_family', 'font']);
   var fontSizeIndex = getHeaderIndex_(headers, ['font_size', 'text_size']);
+  var textRotationIndex = getHeaderIndex_(headers, [
+    'rotation',
+    'rotate',
+    'text_rotation',
+    'text_rotate',
+  ]);
 
   if (idIndex < 0 || textIndex < 0 || heightIndex < 0) {
     return {};
@@ -370,6 +407,9 @@ function getSideDefinitions_(spreadsheet, sideSheetName) {
       }
     }
 
+    var textRotation =
+      textRotationIndex >= 0 ? parseSideTextRotation_(values[rowIndex][textRotationIndex]) : '';
+
     definitions[id] = {
       id: id,
       text: text,
@@ -383,6 +423,7 @@ function getSideDefinitions_(spreadsheet, sideSheetName) {
       italic: baseStyle.italic === true ? true : undefined,
       underline: baseStyle.underline === true ? true : undefined,
       strikethrough: baseStyle.strikethrough === true ? true : undefined,
+      textRotation: textRotation || undefined,
     };
   }
 
