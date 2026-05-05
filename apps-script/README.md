@@ -42,6 +42,7 @@ side_font_family,MS Mincho
 page_no_font_family,Arial
 step_font_scale,4
 body_font_scale,2.5
+side_width,40
 ```
 
 Recommended meaning:
@@ -52,6 +53,7 @@ Recommended meaning:
 - `page_no_font_family`: font used for page numbers
 - `step_font_scale`: multiplier applied to spreadsheet font size for STEP
 - `body_font_scale`: multiplier applied to spreadsheet font size for BODY
+- `side_width`: width of the SIDE column. Numbers are treated as `px`.
 
 Optional: create a `side` sheet when you want to manage SIDE labels by id.
 

@@ -186,6 +186,7 @@ side_font_family,MS Mincho
 page_no_font_family,Arial
 step_font_scale,4
 body_font_scale,2.5
+side_width,40
 ```
 
 ## 8. よくあるつまずき

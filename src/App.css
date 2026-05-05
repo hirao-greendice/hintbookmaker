@@ -1,5 +1,8 @@
 .app {
   --page-body-line-height: 1.15;
+  --page-side-width: 40px;
+  --page-body-edge-inset: 50px;
+  --page-body-side-gap: 20px;
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: auto 1fr;
@@ -325,7 +328,7 @@ pre {
   top: 60px;
   bottom: 0;
   z-index: 1;
-  width: 40px;
+  width: var(--page-side-width);
   background: #efefef;
   display: flex;
   align-items: stretch;
@@ -457,13 +460,13 @@ pre {
 }
 
 .pageBody-left {
-  left: 50px;
-  right: 60px;
+  left: var(--page-body-edge-inset);
+  right: calc(var(--page-side-width) + var(--page-body-side-gap));
 }
 
 .pageBody-right {
-  left: 60px;
-  right: 50px;
+  left: calc(var(--page-side-width) + var(--page-body-side-gap));
+  right: var(--page-body-edge-inset);
 }
 
 .pageBody pre {

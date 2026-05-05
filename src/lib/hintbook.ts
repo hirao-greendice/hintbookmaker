@@ -30,6 +30,7 @@ export type RenderSettings = {
   pageNoFontFamily?: string
   stepFontScale?: number
   bodyFontScale?: number
+  sideWidth?: string
 }
 
 export type ImageSources = Record<string, string>
@@ -232,6 +233,17 @@ function sanitizeFontSize(value: unknown) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) return undefined
   return parsed
+}
+
+function sanitizeCssSize(value: unknown) {
+  const text = toStringValue(value).trim()
+  if (!text) return undefined
+
+  if (/^-?\d+(\.\d+)?$/.test(text)) {
+    return `${text}px`
+  }
+
+  return text
 }
 
 function sanitizeBoolean(value: unknown) {
@@ -490,6 +502,11 @@ function parseRenderSettings(value: unknown): RenderSettings | undefined {
     bodyFontScale:
       sanitizeFontSize(record.bodyFontScale) ??
       sanitizeFontSize(record.body_font_scale),
+    sideWidth:
+      sanitizeCssSize(record.sideWidth) ??
+      sanitizeCssSize(record.side_width) ??
+      sanitizeCssSize(record.sideLabelWidth) ??
+      sanitizeCssSize(record.side_label_width),
   }
 
   if (
@@ -498,7 +515,8 @@ function parseRenderSettings(value: unknown): RenderSettings | undefined {
     !settings.sideFontFamily &&
     !settings.pageNoFontFamily &&
     !settings.stepFontScale &&
-    !settings.bodyFontScale
+    !settings.bodyFontScale &&
+    !settings.sideWidth
   ) {
     return undefined
   }

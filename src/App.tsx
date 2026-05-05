@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import './App.css'
 import {
   buildGoogleSheetCsvUrl,
@@ -1243,6 +1243,13 @@ function PagePreview({
   const pageNumberStyle = {
     fontFamily: pageNoFontFamily,
   }
+  const pageLayoutStyle = (
+    settings?.sideWidth
+      ? {
+          '--page-side-width': normalizeCssSize(settings.sideWidth),
+        }
+      : undefined
+  ) as CSSProperties | undefined
   const imageSources = buildImageSourceMap(page)
   const imageKeys = sortedImageKeys(imageSources)
   const bodyItems = buildBodyContentItems(page?.bodyRuns, page?.body || '')
@@ -1270,7 +1277,10 @@ function PagePreview({
 
   if (!page) {
     return (
-      <article className={`pagePreview pagePreview-${position}`}>
+      <article
+        className={`pagePreview pagePreview-${position}`}
+        style={pageLayoutStyle}
+      >
         <div className="pageStep" />
         <div className={`pageSideLabel pageSideLabel-${layoutPosition}`} />
         <div className={`pageBody pageBody-${layoutPosition}`} />
@@ -1280,7 +1290,7 @@ function PagePreview({
   }
 
   return (
-    <article className={`pagePreview pagePreview-${position}`}>
+    <article className={`pagePreview pagePreview-${position}`} style={pageLayoutStyle}>
       <div className="pageStep" style={stepBlockStyle}>
         <RichText
           runs={page.stepRuns}
@@ -1616,7 +1626,8 @@ function App() {
           <p className="note">
             Use the <code>settings</code> sheet to set shared fonts like{' '}
             <code>step_font_family</code>, <code>body_font_family</code>, and{' '}
-            <code>side_font_family</code>.
+            <code>side_font_family</code>, plus layout values like{' '}
+            <code>side_width</code>.
           </p>
           <p className="note">
             Put ids like <code>1,2,3</code> in <code>side</code>. When using Apps
