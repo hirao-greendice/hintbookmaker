@@ -44,6 +44,31 @@
   gap: 6px;
 }
 
+.previewScaleControl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.previewScaleControl output {
+  min-width: 4ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.previewScaleButton {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 1;
+}
+
 .appHeaderField {
   margin-top: 0;
   flex: 1 1 420px;

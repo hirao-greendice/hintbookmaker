@@ -29,6 +29,10 @@ const DEFAULT_INLINE_HIGHLIGHT_COLOR = '#fff2a8'
 const DRIVE_IMAGE_MAX_WIDTH = 4000
 const SHEET_SOURCE_STORAGE_KEY = 'hintbookmaker.sheetSource'
 const APPS_SCRIPT_SOURCE_STORAGE_KEY = 'hintbookmaker.appsScriptSource'
+const PREVIEW_SCALE_STORAGE_KEY = 'hintbookmaker.previewScale'
+const PREVIEW_SCALE_MIN = 55
+const PREVIEW_SCALE_MAX = 100
+const PREVIEW_SCALE_STEP = 5
 const SHEET_CANVAS_WIDTH = 1122
 const SHEET_CANVAS_HEIGHT = 794
 
@@ -97,6 +101,19 @@ function readStoredValue(storageKey: string, fallback: string) {
 
   const storedValue = window.localStorage.getItem(storageKey)?.trim()
   return storedValue || fallback
+}
+
+function readStoredNumber(storageKey: string, fallback: number) {
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+
+  const storedValue = Number(window.localStorage.getItem(storageKey))
+  return Number.isFinite(storedValue) ? storedValue : fallback
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
 }
 
 function countConfiguredSettings(settings?: RenderSettings) {
@@ -1358,7 +1375,13 @@ function PagePreview({
   )
 }
 
-function ResponsiveSheetCanvas({ children }: { children: ReactNode }) {
+function ResponsiveSheetCanvas({
+  children,
+  displayScale,
+}: {
+  children: ReactNode
+  displayScale: number
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [scale, setScale] = useState(1)
 
@@ -1369,7 +1392,8 @@ function ResponsiveSheetCanvas({ children }: { children: ReactNode }) {
     }
 
     const updateScale = () => {
-      const nextScale = Math.min(container.clientWidth / SHEET_CANVAS_WIDTH, 1)
+      const nextScale =
+        Math.min(container.clientWidth / SHEET_CANVAS_WIDTH, 1) * displayScale
       setScale(nextScale > 0 ? nextScale : 1)
     }
 
@@ -1386,7 +1410,7 @@ function ResponsiveSheetCanvas({ children }: { children: ReactNode }) {
       observer.disconnect()
       window.removeEventListener('resize', updateScale)
     }
-  }, [])
+  }, [displayScale])
 
   return (
     <div ref={containerRef} className="sheetViewport">
@@ -1424,6 +1448,13 @@ function App() {
   const [status, setStatus] = useState('Ready.')
   const [loading, setLoading] = useState(false)
   const [previewMode, setPreviewMode] = useState<PreviewMode>('print')
+  const [previewScalePercent, setPreviewScalePercent] = useState(() =>
+    clampNumber(
+      readStoredNumber(PREVIEW_SCALE_STORAGE_KEY, 80),
+      PREVIEW_SCALE_MIN,
+      PREVIEW_SCALE_MAX,
+    ),
+  )
 
   useEffect(() => {
     window.localStorage.setItem(SHEET_SOURCE_STORAGE_KEY, sheetSource)
@@ -1432,6 +1463,13 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(APPS_SCRIPT_SOURCE_STORAGE_KEY, appsScriptSource)
   }, [appsScriptSource])
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      PREVIEW_SCALE_STORAGE_KEY,
+      String(previewScalePercent),
+    )
+  }, [previewScalePercent])
 
   const handleFormat = () => {
     try {
@@ -1609,6 +1647,46 @@ function App() {
               本にした
             </button>
           </div>
+          <div className="previewScaleControl" aria-label="Preview display size">
+            <span>表示サイズ</span>
+            <button
+              type="button"
+              className="previewScaleButton"
+              onClick={() =>
+                setPreviewScalePercent((currentScale) =>
+                  clampNumber(
+                    currentScale - PREVIEW_SCALE_STEP,
+                    PREVIEW_SCALE_MIN,
+                    PREVIEW_SCALE_MAX,
+                  ),
+                )
+              }
+              disabled={previewScalePercent <= PREVIEW_SCALE_MIN}
+              aria-label="Make preview smaller"
+              title="Make preview smaller"
+            >
+              -
+            </button>
+            <output>{previewScalePercent}%</output>
+            <button
+              type="button"
+              className="previewScaleButton"
+              onClick={() =>
+                setPreviewScalePercent((currentScale) =>
+                  clampNumber(
+                    currentScale + PREVIEW_SCALE_STEP,
+                    PREVIEW_SCALE_MIN,
+                    PREVIEW_SCALE_MAX,
+                  ),
+                )
+              }
+              disabled={previewScalePercent >= PREVIEW_SCALE_MAX}
+              aria-label="Make preview larger"
+              title="Make preview larger"
+            >
+              +
+            </button>
+          </div>
           <details
             className="controlsDetails controlsDetailsInline"
             style={{ display: 'none' }}
@@ -1713,7 +1791,7 @@ function App() {
               <span>{spread.label}</span>
               <span>{spread.meta}</span>
             </div>
-            <ResponsiveSheetCanvas>
+            <ResponsiveSheetCanvas displayScale={previewScalePercent / 100}>
                 <PagePreview
                   page={spread.leftPage}
                   position="left"
