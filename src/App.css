@@ -452,6 +452,15 @@ pre {
   text-orientation: mixed;
 }
 
+.pageSideBlockText-upright {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+
 .pageSideBlockText-rotateCw,
 .pageSideBlockText-rotateCcw {
   width: auto;
@@ -500,6 +509,13 @@ pre {
   width: auto;
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  white-space: pre-line;
+}
+
+.pageSideTextSegment-upright {
+  width: auto;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
   white-space: pre-line;
 }
 

@@ -302,6 +302,15 @@ function parseSideTextDirection_(value) {
   }
 
   if (
+    text === 'upright' ||
+    text === 'vertical_upright' ||
+    text === 'text_upright' ||
+    text === 'u'
+  ) {
+    return 'upright';
+  }
+
+  if (
     text === 'rotate_cw' ||
     text === 'rotatecw'
   ) {

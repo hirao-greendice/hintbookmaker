@@ -70,7 +70,13 @@ type BodyContentItem =
       options: InlineImageOptions
     }
 
-type SideInlineDirection = 'horizontal' | 'vertical' | 'tcy' | 'cw' | 'ccw'
+type SideInlineDirection =
+  | 'horizontal'
+  | 'vertical'
+  | 'upright'
+  | 'tcy'
+  | 'cw'
+  | 'ccw'
 
 type SideTextSegment = {
   direction?: SideInlineDirection
@@ -888,13 +894,21 @@ function appendSideTextSegment(
   })
 }
 
+function normalizeSideInlineDirectionToken(token: string): SideInlineDirection {
+  const normalized = token.trim().toLowerCase()
+  if (normalized === 'h') return 'horizontal'
+  if (normalized === 'v') return 'vertical'
+  if (normalized === 'u') return 'upright'
+  return normalized as SideInlineDirection
+}
+
 function parseSideTextSegments(runs?: RichTextRun[]) {
   if (!runs || runs.length === 0) {
     return null
   }
 
   const fullText = runs.map((run) => run.text).join('')
-  const tokenPattern = /\[(\/?)\s*(h|v|tcy|cw|ccw)\s*\]/gi
+  const tokenPattern = /\[(\/?)\s*(h|v|u|upright|tcy|cw|ccw)\s*\]/gi
   const directionStack: SideInlineDirection[] = []
   const segments: SideTextSegment[] = []
   let cursor = 0
@@ -912,7 +926,7 @@ function parseSideTextSegments(runs?: RichTextRun[]) {
       sliceRunsByRange(runs, cursor, matchStart),
     )
 
-    const direction = match[2].toLowerCase() as SideInlineDirection
+    const direction = normalizeSideInlineDirectionToken(match[2])
     if (match[1] === '/') {
       if (directionStack[directionStack.length - 1] !== direction) {
         return null
@@ -942,6 +956,7 @@ function parseSideTextSegments(runs?: RichTextRun[]) {
 function resolveSideBlockBaseDirection(
   definition: SideBlockDefinition,
 ): Exclude<SideInlineDirection, 'tcy'> {
+  if (definition.textDirection === 'upright') return 'upright'
   if (definition.textDirection === 'vertical') return 'vertical'
   if (definition.textDirection === 'rotateCw') return 'cw'
   if (definition.textDirection === 'rotateCcw') return 'ccw'
@@ -952,6 +967,10 @@ function resolveSideBlockBaseDirection(
 }
 
 function resolveSideBlockTextRotationClass(definition: SideBlockDefinition) {
+  if (definition.textDirection === 'upright') {
+    return 'pageSideBlockText-upright'
+  }
+
   if (definition.textDirection === 'vertical') {
     return 'pageSideBlockText-vertical'
   }
@@ -980,6 +999,7 @@ function resolveSideBlockTextRotationClass(definition: SideBlockDefinition) {
 }
 
 function resolveSideTextSegmentClass(direction: SideInlineDirection) {
+  if (direction === 'upright') return 'pageSideTextSegment-upright'
   if (direction === 'vertical') return 'pageSideTextSegment-vertical'
   if (direction === 'tcy') return 'pageSideTextSegment-tcy'
   if (direction === 'cw') return 'pageSideTextSegment-cw'
@@ -1876,13 +1896,14 @@ function App() {
           </p>
           <p className="note">
             Use <code>direction</code> in the <code>side</code> sheet with{' '}
-            <code>horizontal</code>, <code>vertical</code>, <code>rotate_cw</code>, or{' '}
-            <code>rotate_ccw</code>. The older <code>rotation</code> column is still
-            supported.
+            <code>horizontal</code>, <code>vertical</code>, <code>upright</code>,{' '}
+            <code>rotate_cw</code>, or <code>rotate_ccw</code>. The older{' '}
+            <code>rotation</code> column is still supported.
           </p>
           <p className="note">
             Mix directions in one SIDE cell with <code>[h]...[/h]</code>,{' '}
-            <code>[v]...[/v]</code>, <code>[tcy]...[/tcy]</code>,{' '}
+            <code>[v]...[/v]</code>, <code>[u]...[/u]</code>,{' '}
+            <code>[upright]...[/upright]</code>, <code>[tcy]...[/tcy]</code>,{' '}
             <code>[cw]...[/cw]</code>, or <code>[ccw]...[/ccw]</code>.
           </p>
           <p className="note">

@@ -72,6 +72,7 @@ Supported `direction` values:
 
 - `horizontal` or `h`: regular horizontal text
 - `vertical` or `v`: Japanese vertical text, including vertical prolonged-sound marks
+- `upright` or `u`: vertical text with Latin letters kept upright
 - `rotate_cw`: rotate a horizontal phrase clockwise
 - `rotate_ccw`: rotate a horizontal phrase counterclockwise
 
@@ -88,8 +89,9 @@ To mix directions inside one `text` cell, wrap only the relevant portions:
 [cw]CHAPTER ONE[/cw]
 ```
 
-Supported inline tags are `[h]...[/h]`, `[v]...[/v]`, `[tcy]...[/tcy]`,
-`[cw]...[/cw]`, and `[ccw]...[/ccw]`. Untagged text inherits `direction`.
+Supported inline tags are `[h]...[/h]`, `[v]...[/v]`, `[u]...[/u]`,
+`[upright]...[/upright]`, `[tcy]...[/tcy]`, `[cw]...[/cw]`, and
+`[ccw]...[/ccw]`. Untagged text inherits `direction`.
 Spreadsheet rich-text formatting such as font color and bold remains attached to
 the visible text. An incomplete or mismatched tag is shown literally instead of
 discarding text.

@@ -48,7 +48,7 @@ export type SideBlockDefinition = {
   italic?: boolean
   underline?: boolean
   strikethrough?: boolean
-  textDirection?: 'horizontal' | 'vertical' | 'rotateCw' | 'rotateCcw'
+  textDirection?: 'horizontal' | 'vertical' | 'upright' | 'rotateCw' | 'rotateCcw'
   textRotation?: 'cw' | 'ccw'
 }
 
@@ -297,6 +297,15 @@ function sanitizeSideTextDirection(
 
   if (text === 'vertical' || text === 'vertical_rl' || text === 'v') {
     return 'vertical'
+  }
+
+  if (
+    text === 'upright' ||
+    text === 'vertical_upright' ||
+    text === 'text_upright' ||
+    text === 'u'
+  ) {
+    return 'upright'
   }
 
   if (
