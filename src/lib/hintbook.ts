@@ -48,6 +48,7 @@ export type SideBlockDefinition = {
   italic?: boolean
   underline?: boolean
   strikethrough?: boolean
+  textDirection?: 'horizontal' | 'vertical' | 'rotateCw' | 'rotateCcw'
   textRotation?: 'cw' | 'ccw'
 }
 
@@ -284,6 +285,37 @@ function sanitizeSideTextRotation(value: unknown): SideBlockDefinition['textRota
   return undefined
 }
 
+function sanitizeSideTextDirection(
+  value: unknown,
+): SideBlockDefinition['textDirection'] {
+  const text = toStringValue(value).trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if (!text) return undefined
+
+  if (text === 'horizontal' || text === 'horizontal_tb' || text === 'h') {
+    return 'horizontal'
+  }
+
+  if (text === 'vertical' || text === 'vertical_rl' || text === 'v') {
+    return 'vertical'
+  }
+
+  if (
+    text === 'rotate_cw' ||
+    text === 'rotatecw'
+  ) {
+    return 'rotateCw'
+  }
+
+  if (
+    text === 'rotate_ccw' ||
+    text === 'rotateccw'
+  ) {
+    return 'rotateCcw'
+  }
+
+  return undefined
+}
+
 function parseStepStyle(value: unknown): StepStyle | undefined {
   if (!value || typeof value !== 'object') {
     return undefined
@@ -424,6 +456,12 @@ function parseSideBlockDefinitions(value: unknown): SideBlockDefinitions | undef
       sanitizeBoolean(record.strikethrough) ??
       sanitizeBoolean(record.strikeThrough) ??
       sanitizeBoolean(record.strike_through)
+    const textDirection =
+      sanitizeSideTextDirection(record.textDirection) ??
+      sanitizeSideTextDirection(record.text_direction) ??
+      sanitizeSideTextDirection(record.direction) ??
+      sanitizeSideTextDirection(record.writingMode) ??
+      sanitizeSideTextDirection(record.writing_mode)
     const textRotation =
       sanitizeSideTextRotation(record.textRotation) ??
       sanitizeSideTextRotation(record.text_rotation) ??
@@ -442,6 +480,7 @@ function parseSideBlockDefinitions(value: unknown): SideBlockDefinitions | undef
       italic === undefined &&
       underline === undefined &&
       strikethrough === undefined &&
+      !textDirection &&
       !textRotation
     ) {
       continue
@@ -460,6 +499,7 @@ function parseSideBlockDefinitions(value: unknown): SideBlockDefinitions | undef
       italic,
       underline,
       strikethrough,
+      textDirection,
       textRotation,
     }
   }

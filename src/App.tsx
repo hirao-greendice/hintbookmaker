@@ -70,6 +70,13 @@ type BodyContentItem =
       options: InlineImageOptions
     }
 
+type SideInlineDirection = 'horizontal' | 'vertical' | 'tcy' | 'cw' | 'ccw'
+
+type SideTextSegment = {
+  direction?: SideInlineDirection
+  runs: RichTextRun[]
+}
+
 type PreviewMode = 'print' | 'book'
 
 type PreviewSpread = {
@@ -860,7 +867,107 @@ function buildSideFallbackRuns(definition: SideBlockDefinition) {
   ]
 }
 
+function appendSideTextSegment(
+  segments: SideTextSegment[],
+  direction: SideInlineDirection | undefined,
+  runs: RichTextRun[],
+) {
+  if (runs.length === 0) {
+    return
+  }
+
+  const lastSegment = segments[segments.length - 1]
+  if (lastSegment?.direction === direction) {
+    appendRuns(lastSegment.runs, runs)
+    return
+  }
+
+  segments.push({
+    direction,
+    runs: runs.map((run) => ({ ...run })),
+  })
+}
+
+function parseSideTextSegments(runs?: RichTextRun[]) {
+  if (!runs || runs.length === 0) {
+    return null
+  }
+
+  const fullText = runs.map((run) => run.text).join('')
+  const tokenPattern = /\[(\/?)\s*(h|v|tcy|cw|ccw)\s*\]/gi
+  const directionStack: SideInlineDirection[] = []
+  const segments: SideTextSegment[] = []
+  let cursor = 0
+  let sawToken = false
+  let match = tokenPattern.exec(fullText)
+
+  while (match) {
+    sawToken = true
+    const matchStart = match.index
+    const matchEnd = matchStart + match[0].length
+
+    appendSideTextSegment(
+      segments,
+      directionStack[directionStack.length - 1],
+      sliceRunsByRange(runs, cursor, matchStart),
+    )
+
+    const direction = match[2].toLowerCase() as SideInlineDirection
+    if (match[1] === '/') {
+      if (directionStack[directionStack.length - 1] !== direction) {
+        return null
+      }
+      directionStack.pop()
+    } else {
+      directionStack.push(direction)
+    }
+
+    cursor = matchEnd
+    match = tokenPattern.exec(fullText)
+  }
+
+  if (!sawToken || directionStack.length > 0) {
+    return null
+  }
+
+  appendSideTextSegment(
+    segments,
+    undefined,
+    sliceRunsByRange(runs, cursor, fullText.length),
+  )
+
+  return segments
+}
+
+function resolveSideBlockBaseDirection(
+  definition: SideBlockDefinition,
+): Exclude<SideInlineDirection, 'tcy'> {
+  if (definition.textDirection === 'vertical') return 'vertical'
+  if (definition.textDirection === 'rotateCw') return 'cw'
+  if (definition.textDirection === 'rotateCcw') return 'ccw'
+  if (definition.textDirection === 'horizontal') return 'horizontal'
+  if (definition.textRotation === 'cw') return 'cw'
+  if (definition.textRotation === 'ccw') return 'ccw'
+  return 'horizontal'
+}
+
 function resolveSideBlockTextRotationClass(definition: SideBlockDefinition) {
+  if (definition.textDirection === 'vertical') {
+    return 'pageSideBlockText-vertical'
+  }
+
+  if (definition.textDirection === 'rotateCw') {
+    return 'pageSideBlockText-rotateCw'
+  }
+
+  if (definition.textDirection === 'rotateCcw') {
+    return 'pageSideBlockText-rotateCcw'
+  }
+
+  if (definition.textDirection === 'horizontal') {
+    return ''
+  }
+
   if (definition.textRotation === 'cw') {
     return 'pageSideBlockText-rotateCw'
   }
@@ -870,6 +977,72 @@ function resolveSideBlockTextRotationClass(definition: SideBlockDefinition) {
   }
 
   return ''
+}
+
+function resolveSideTextSegmentClass(direction: SideInlineDirection) {
+  if (direction === 'vertical') return 'pageSideTextSegment-vertical'
+  if (direction === 'tcy') return 'pageSideTextSegment-tcy'
+  if (direction === 'cw') return 'pageSideTextSegment-cw'
+  if (direction === 'ccw') return 'pageSideTextSegment-ccw'
+  return 'pageSideTextSegment-horizontal'
+}
+
+function SideBlockText({
+  definition,
+  position,
+  defaultFontFamily,
+}: {
+  definition: SideBlockDefinition
+  position: 'left' | 'right'
+  defaultFontFamily?: string
+}) {
+  const runs = buildSideFallbackRuns(definition)
+  const segments = parseSideTextSegments(runs)
+
+  if (!segments) {
+    const directionClass = resolveSideBlockTextRotationClass(definition)
+    return (
+      <RichText
+        runs={runs}
+        fallback=""
+        className={`pageSideBlockText pageSideBlockText-${position}${
+          directionClass ? ` ${directionClass}` : ''
+        }`}
+        multiplier={1}
+        defaultFontFamily={defaultFontFamily}
+        cellFontFamily={defaultFontFamily}
+        baseFontSize={definition.fontSize}
+        baseTextColor={
+          definition.textColor ?? (definition.backgroundColor ? '#ffffff' : undefined)
+        }
+      />
+    )
+  }
+
+  const baseDirection = resolveSideBlockBaseDirection(definition)
+
+  return (
+    <div className="pageSideTextSegments">
+      {segments.map((segment, segmentIndex) => {
+        const direction = segment.direction ?? baseDirection
+        return (
+          <RichText
+            key={`${segmentIndex}-${direction}`}
+            runs={segment.runs}
+            fallback=""
+            className={`pageSideTextSegment ${resolveSideTextSegmentClass(direction)}`}
+            multiplier={1}
+            defaultFontFamily={defaultFontFamily}
+            cellFontFamily={defaultFontFamily}
+            baseFontSize={definition.fontSize}
+            baseTextColor={
+              definition.textColor ?? (definition.backgroundColor ? '#ffffff' : undefined)
+            }
+          />
+        )
+      })}
+    </div>
+  )
 }
 
 function hasExplicitImageSize(width?: string, height?: string) {
@@ -1166,7 +1339,6 @@ function PageSideLabel({
         {resolvedSideBlocks.map(({ definition, height }, blockIndex) => (
           (() => {
             const effectiveSideFontFamily = defaultFontFamily ?? definition.fontFamily
-            const sideTextRotationClass = resolveSideBlockTextRotationClass(definition)
 
             return (
           <div
@@ -1179,20 +1351,11 @@ function PageSideLabel({
           >
             <div className="pageSideBlockContent">
               <div className="pageSideBlockTextFrame">
-              <RichText
-                runs={buildSideFallbackRuns(definition)}
-                fallback=""
-                className={`pageSideBlockText pageSideBlockText-${position}${
-                  sideTextRotationClass ? ` ${sideTextRotationClass}` : ''
-                }`}
-                multiplier={1}
-                defaultFontFamily={effectiveSideFontFamily}
-                cellFontFamily={effectiveSideFontFamily}
-                baseFontSize={definition.fontSize}
-                baseTextColor={
-                  definition.textColor ?? (definition.backgroundColor ? '#ffffff' : undefined)
-                }
-              />
+                <SideBlockText
+                  definition={definition}
+                  position={position}
+                  defaultFontFamily={effectiveSideFontFamily}
+                />
               </div>
             </div>
           </div>
@@ -1712,9 +1875,15 @@ function App() {
             Script, those ids are resolved from the separate <code>side</code> sheet.
           </p>
           <p className="note">
-            Use <code>rotation</code> or <code>rotate</code> in the <code>side</code>{' '}
-            sheet for SIDE text direction. Supported values include <code>90</code>,{' '}
-            <code>-90</code>, <code>cw</code>, and <code>ccw</code>.
+            Use <code>direction</code> in the <code>side</code> sheet with{' '}
+            <code>horizontal</code>, <code>vertical</code>, <code>rotate_cw</code>, or{' '}
+            <code>rotate_ccw</code>. The older <code>rotation</code> column is still
+            supported.
+          </p>
+          <p className="note">
+            Mix directions in one SIDE cell with <code>[h]...[/h]</code>,{' '}
+            <code>[v]...[/v]</code>, <code>[tcy]...[/tcy]</code>,{' '}
+            <code>[cw]...[/cw]</code>, or <code>[ccw]...[/ccw]</code>.
           </p>
           <p className="note">
             <code>image_1</code> accepts Google Drive share links and regular image URLs.

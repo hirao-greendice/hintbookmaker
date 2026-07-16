@@ -172,6 +172,24 @@ SIDE を ID で管理する場合は、Apps Script 側で `side` シートを読
 - `text_color`
 - `font_family`
 - `font_size`
+- `direction`（`horizontal`、`vertical`、`rotate_cw`、`rotate_ccw`）
+- `rotation` または `rotate`（従来の回転指定も引き続き利用可能）
+
+同じ `text` セル内で文字方向を混在させる場合は、必要な部分だけタグで囲みます。
+
+```text
+[v]コーヒー[/v][h]OPEN 10:00[/h]
+第[tcy]12[/tcy]問
+[cw]CHAPTER ONE[/cw]
+```
+
+- `[h]...[/h]`: 横書き
+- `[v]...[/v]`: 日本語の縦書き
+- `[tcy]...[/tcy]`: 縦中横（短い数字など）
+- `[cw]...[/cw]`: 右へ90度回転
+- `[ccw]...[/ccw]`: 左へ90度回転
+
+タグのない部分は `direction` の指定を引き継ぎます。タグの対応が間違っている場合は、文字が消えないようタグを含めた通常文字として表示されます。
 
 ### 7-4. settings シートについて
 
