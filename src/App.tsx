@@ -877,7 +877,7 @@ function appendSideTextSegment(
   }
 
   const lastSegment = segments[segments.length - 1]
-  if (lastSegment?.direction === direction) {
+  if (lastSegment && lastSegment.direction === direction) {
     appendRuns(lastSegment.runs, runs)
     return
   }
