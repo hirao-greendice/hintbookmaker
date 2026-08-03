@@ -33,6 +33,10 @@ The web app returns JSON like this:
 }
 ```
 
+Inside a `body` cell, wrap text in `[[box]]...[[/box]]` to place it on the
+default red text box. Specify another background color after a colon, for
+example `[[box:#1f78c8]]...[[/box]]`.
+
 Optional: create a `settings` sheet with these keys in column A and values in column B.
 
 ```text

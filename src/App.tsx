@@ -24,8 +24,9 @@ const BASE_FONT_SIZE = 10
 const STEP_FONT_SCALE = 4
 const BODY_FONT_SCALE = 2.5
 const INLINE_IMAGE_TOKEN = /\{\{(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?\}\}/gi
-const INLINE_HIGHLIGHT_TOKEN = /\[\[(\/?)hl(?:\s*:\s*([^[\]]+))?\]\]/gi
+const INLINE_DECORATION_TOKEN = /\[\[(\/?)(hl|box)(?:\s*:\s*([^[\]]+))?\]\]/gi
 const DEFAULT_INLINE_HIGHLIGHT_COLOR = '#fff2a8'
+const DEFAULT_INLINE_BOX_COLOR = '#d94b67'
 const DRIVE_IMAGE_MAX_WIDTH = 4000
 const SHEET_SOURCE_STORAGE_KEY = 'hintbookmaker.sheetSource'
 const APPS_SCRIPT_SOURCE_STORAGE_KEY = 'hintbookmaker.appsScriptSource'
@@ -56,10 +57,20 @@ type InlineImageOptions = {
   >
 }
 
+type InlineBoxDecoration = {
+  id: number
+  backgroundColor: string
+  textColor?: string
+}
+
+type RenderTextRun = RichTextRun & {
+  inlineBox?: InlineBoxDecoration
+}
+
 type BodyContentItem =
   | {
       type: 'text'
-      runs: RichTextRun[]
+      runs: RenderTextRun[]
     }
   | {
       type: 'image'
@@ -372,14 +383,17 @@ function resolveImageFit(value?: string) {
   return normalized === 'cover' ? 'cover' : 'contain'
 }
 
-function cloneRunWithText(run: RichTextRun, text: string): RichTextRun {
+function cloneRunWithText<T extends RichTextRun>(run: T, text: string): T {
   return {
     ...run,
     text,
-  }
+  } as T
 }
 
 function runsHaveSameStyle(first: RichTextRun, second: RichTextRun) {
+  const firstBox = (first as RenderTextRun).inlineBox
+  const secondBox = (second as RenderTextRun).inlineBox
+
   return (
     first.backgroundColor === second.backgroundColor &&
     first.textColor === second.textColor &&
@@ -388,11 +402,12 @@ function runsHaveSameStyle(first: RichTextRun, second: RichTextRun) {
     first.bold === second.bold &&
     first.italic === second.italic &&
     first.underline === second.underline &&
-    first.strikethrough === second.strikethrough
+    first.strikethrough === second.strikethrough &&
+    firstBox?.id === secondBox?.id
   )
 }
 
-function appendRuns(target: RichTextRun[], runs: RichTextRun[]) {
+function appendRuns<T extends RichTextRun>(target: T[], runs: T[]) {
   for (const run of runs) {
     const lastRun = target[target.length - 1]
 
@@ -405,8 +420,8 @@ function appendRuns(target: RichTextRun[], runs: RichTextRun[]) {
   }
 }
 
-function sliceRunsByRange(
-  runs: RichTextRun[],
+function sliceRunsByRange<T extends RichTextRun>(
+  runs: T[],
   startIndex: number,
   endIndex: number,
 ) {
@@ -414,7 +429,7 @@ function sliceRunsByRange(
     return []
   }
 
-  const slicedRuns: RichTextRun[] = []
+  const slicedRuns: T[] = []
   let cursor = 0
 
   for (const run of runs) {
@@ -438,7 +453,7 @@ function sliceRunsByRange(
   return slicedRuns
 }
 
-function trimLeadingLineBreak(runs: RichTextRun[]) {
+function trimLeadingLineBreak<T extends RichTextRun>(runs: T[]) {
   if (runs.length === 0) {
     return runs
   }
@@ -469,7 +484,7 @@ function trimLeadingLineBreak(runs: RichTextRun[]) {
   return nextRuns
 }
 
-function trimTrailingLineBreak(runs: RichTextRun[]) {
+function trimTrailingLineBreak<T extends RichTextRun>(runs: T[]) {
   if (runs.length === 0) {
     return runs
   }
@@ -506,56 +521,117 @@ function resolveInlineHighlightColor(value?: string) {
   return trimmed || DEFAULT_INLINE_HIGHLIGHT_COLOR
 }
 
-function applyInlineHighlights(sourceRuns: RichTextRun[]) {
+function parseHexColor(value: string) {
+  const match = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (!match) {
+    return undefined
+  }
+
+  const hex =
+    match[1].length === 3
+      ? match[1]
+          .split('')
+          .map((digit) => digit + digit)
+          .join('')
+      : match[1]
+
+  return {
+    red: Number.parseInt(hex.slice(0, 2), 16),
+    green: Number.parseInt(hex.slice(2, 4), 16),
+    blue: Number.parseInt(hex.slice(4, 6), 16),
+  }
+}
+
+function resolveInlineBoxTextColor(backgroundColor: string) {
+  const color = parseHexColor(backgroundColor)
+  if (!color) {
+    return undefined
+  }
+
+  const perceivedBrightness =
+    (color.red * 299 + color.green * 587 + color.blue * 114) / 1000
+  return perceivedBrightness >= 160 ? '#1a1a1a' : '#ffffff'
+}
+
+function resolveInlineBox(value: string | undefined, id: number): InlineBoxDecoration {
+  const backgroundColor = value?.trim() || DEFAULT_INLINE_BOX_COLOR
+  return {
+    id,
+    backgroundColor,
+    textColor: resolveInlineBoxTextColor(backgroundColor),
+  }
+}
+
+function applyInlineDecorations(sourceRuns: RichTextRun[]): RenderTextRun[] {
   if (sourceRuns.length === 0) {
     return sourceRuns
   }
 
   const fullText = sourceRuns.map((run) => run.text).join('')
-  if (!fullText.includes('[[hl')) {
+  if (!/\[\[\/?(?:hl|box)(?:\s*:|\]\])/i.test(fullText)) {
     return sourceRuns
   }
 
-  const highlightedRuns: RichTextRun[] = []
+  const decoratedRuns: RenderTextRun[] = []
   const activeHighlightColors: string[] = []
+  const activeBoxes: InlineBoxDecoration[] = []
+  let nextBoxId = 1
   let cursor = 0
 
-  INLINE_HIGHLIGHT_TOKEN.lastIndex = 0
-  let match = INLINE_HIGHLIGHT_TOKEN.exec(fullText)
+  INLINE_DECORATION_TOKEN.lastIndex = 0
+  let match = INLINE_DECORATION_TOKEN.exec(fullText)
 
   while (match) {
     const matchStart = match.index
     const matchEnd = matchStart + match[0].length
 
     if (cursor < matchStart) {
-      const textRuns = sliceRunsByRange(sourceRuns, cursor, matchStart).map((run) => ({
+      const textRuns: RenderTextRun[] = sliceRunsByRange(
+        sourceRuns,
+        cursor,
+        matchStart,
+      ).map((run) => ({
         ...run,
         backgroundColor:
           activeHighlightColors[activeHighlightColors.length - 1] ?? run.backgroundColor,
+        inlineBox: activeBoxes[activeBoxes.length - 1],
       }))
-      appendRuns(highlightedRuns, textRuns)
+      appendRuns(decoratedRuns, textRuns)
     }
 
+    const decorationType = match[2].toLowerCase()
     if (match[1] === '/') {
-      activeHighlightColors.pop()
+      if (decorationType === 'hl') {
+        activeHighlightColors.pop()
+      } else {
+        activeBoxes.pop()
+      }
+    } else if (decorationType === 'hl') {
+      activeHighlightColors.push(resolveInlineHighlightColor(match[3]))
     } else {
-      activeHighlightColors.push(resolveInlineHighlightColor(match[2]))
+      activeBoxes.push(resolveInlineBox(match[3], nextBoxId))
+      nextBoxId += 1
     }
 
     cursor = matchEnd
-    match = INLINE_HIGHLIGHT_TOKEN.exec(fullText)
+    match = INLINE_DECORATION_TOKEN.exec(fullText)
   }
 
   if (cursor < fullText.length) {
-    const textRuns = sliceRunsByRange(sourceRuns, cursor, fullText.length).map((run) => ({
+    const textRuns: RenderTextRun[] = sliceRunsByRange(
+      sourceRuns,
+      cursor,
+      fullText.length,
+    ).map((run) => ({
       ...run,
       backgroundColor:
         activeHighlightColors[activeHighlightColors.length - 1] ?? run.backgroundColor,
+      inlineBox: activeBoxes[activeBoxes.length - 1],
     }))
-    appendRuns(highlightedRuns, textRuns)
+    appendRuns(decoratedRuns, textRuns)
   }
 
-  return highlightedRuns
+  return decoratedRuns
 }
 
 function applyInlineImageOption(
@@ -663,7 +739,7 @@ function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContent
     return []
   }
 
-  const normalizedRuns = applyInlineHighlights(sourceRuns)
+  const normalizedRuns = applyInlineDecorations(sourceRuns)
   const fullText = normalizedRuns.map((run) => run.text).join('')
   const items: BodyContentItem[] = []
   let cursor = 0
@@ -792,6 +868,32 @@ function runStyle(
   }
 }
 
+type RichTextRunGroup = {
+  inlineBox?: InlineBoxDecoration
+  runs: RenderTextRun[]
+}
+
+function groupRunsByInlineBox(runs: RichTextRun[]) {
+  const groups: RichTextRunGroup[] = []
+
+  for (const sourceRun of runs) {
+    const run = sourceRun as RenderTextRun
+    const lastGroup = groups[groups.length - 1]
+
+    if (lastGroup && lastGroup.inlineBox?.id === run.inlineBox?.id) {
+      lastGroup.runs.push(run)
+      continue
+    }
+
+    groups.push({
+      inlineBox: run.inlineBox,
+      runs: [run],
+    })
+  }
+
+  return groups
+}
+
 function RichText({
   runs,
   fallback,
@@ -822,30 +924,50 @@ function RichText({
           },
         ]
 
+  const runGroups = groupRunsByInlineBox(sourceRuns)
+
   return (
     <div className={className}>
-      {sourceRuns.map((run, runIndex) => {
-        const parts = run.text.split('\n')
-        return (
-          <span
-            key={`${runIndex}-${run.text}`}
-          >
-            {(() => {
-              const style = runStyle(run, multiplier, {
-                defaultFontFamily,
-                cellFontFamily,
-                baseFontSize,
-                baseTextColor,
-                omitFontFamily,
-              })
+      {runGroups.map((group, groupIndex) => {
+        const effectiveBaseTextColor = group.inlineBox?.textColor ?? baseTextColor
+        const content = group.runs.map((run, runIndex) => {
+          const parts = run.text.split('\n')
+          const style = runStyle(run, multiplier, {
+            defaultFontFamily,
+            cellFontFamily,
+            baseFontSize,
+            baseTextColor: effectiveBaseTextColor,
+            omitFontFamily,
+          })
 
-              return parts.map((part, partIndex) => (
+          return (
+            <span key={`${groupIndex}-${runIndex}-${run.text}`}>
+              {parts.map((part, partIndex) => (
                 <span key={`${runIndex}-${partIndex}`} style={style}>
                   {part}
                   {partIndex < parts.length - 1 ? <br /> : null}
                 </span>
-              ))
-            })()}
+              ))}
+            </span>
+          )
+        })
+
+        if (!group.inlineBox) {
+          return <span key={`plain-${groupIndex}`}>{content}</span>
+        }
+
+        const firstRun = group.runs[0]
+        return (
+          <span
+            key={`box-${group.inlineBox.id}`}
+            className="inlineTextBox"
+            style={{
+              backgroundColor: group.inlineBox.backgroundColor,
+              color: effectiveBaseTextColor,
+              fontSize: scaledFontSize(firstRun?.fontSize ?? baseFontSize, multiplier),
+            }}
+          >
+            {content}
           </span>
         )
       })}
@@ -1919,6 +2041,10 @@ function App() {
           <p className="note">
             Use <code>{'[[hl]]text[[/hl]]'}</code> for a yellow highlight, or{' '}
             <code>{'[[hl:#ffd7a8]]text[[/hl]]'}</code> for a custom color.
+          </p>
+          <p className="note">
+            Use <code>{'[[box]]text[[/box]]'}</code> for a red text box, or{' '}
+            <code>{'[[box:#1f78c8]]text[[/box]]'}</code> for a custom color.
           </p>
           <p className="note">
             PDF export uses the browser print dialog. Select <code>Save as PDF</code>.

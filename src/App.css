@@ -603,6 +603,17 @@ pre {
   flex: 0 0 auto;
 }
 
+.inlineTextBox {
+  display: inline-block;
+  max-width: 100%;
+  margin-inline: 0.06em;
+  padding: 0.1em 0.4em 0.14em;
+  border-radius: 0.1em;
+  box-sizing: border-box;
+  line-height: 1.1;
+  vertical-align: baseline;
+}
+
 .pageImageFrame {
   flex: 0 0 auto;
   min-height: 0;

@@ -941,7 +941,7 @@ export const sheetColumnGuide = [
   ['page_no', 'Display page number. This does not control sorting.'],
   ['step', 'Top label of the page.'],
   ['side', 'Comma-separated SIDE block ids such as 1,2,3. These ids are resolved from the separate side sheet when using Apps Script.'],
-  ['body', 'Free text body. Use {{image}}, {{image:2}}, {{image:3}} for single images, or {{images:1,2,3}} for one horizontal row of multiple images.'],
+  ['body', 'Free text body. Use [[box]]text[[/box]] for a red text box or [[box:#1f78c8]]text[[/box]] for a custom color. Use {{image}}, {{image:2}}, {{image:3}} for single images, or {{images:1,2,3}} for one horizontal row of multiple images.'],
   ['image_1', 'Primary image URL, Google Drive share link, or linked cell. Legacy column name image is also supported.'],
   ['image_2', 'Optional second image source. Also supports image_3, image_4, and so on.'],
   ['image_position', 'Optional fallback. top or bottom. Used only when BODY does not contain {{image}}.'],
