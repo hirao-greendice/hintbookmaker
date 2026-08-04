@@ -23,7 +23,8 @@ const defaultAppsScriptSource =
 const BASE_FONT_SIZE = 10
 const STEP_FONT_SCALE = 4
 const BODY_FONT_SCALE = 2.5
-const INLINE_IMAGE_TOKEN = /\{\{(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?\}\}/gi
+const INLINE_BODY_TOKEN =
+  /\{\{(?:(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?|space\s*:\s*((?:\d+(?:\.\d+)?|\.\d+)(?:px|mm|cm|pt|em|rem)?)\s*)\}\}/gi
 const INLINE_DECORATION_TOKEN = /\[\[(\/?)(hl|box)(?:\s*:\s*([^[\]]+))?\]\]/gi
 const DEFAULT_INLINE_HIGHLIGHT_COLOR = '#fff2a8'
 const DEFAULT_INLINE_BOX_COLOR = '#d94b67'
@@ -79,6 +80,10 @@ type BodyContentItem =
   | {
       type: 'imageRow'
       options: InlineImageOptions
+    }
+  | {
+      type: 'space'
+      size: string
     }
 
 type SideInlineDirection =
@@ -745,8 +750,8 @@ function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContent
   let cursor = 0
   let shouldTrimLeadingBreak = false
 
-  INLINE_IMAGE_TOKEN.lastIndex = 0
-  let match = INLINE_IMAGE_TOKEN.exec(fullText)
+  INLINE_BODY_TOKEN.lastIndex = 0
+  let match = INLINE_BODY_TOKEN.exec(fullText)
 
   while (match) {
     const matchStart = match.index
@@ -766,28 +771,34 @@ function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContent
       }
     }
 
-    items.push({
-      type:
-        match[1].toLowerCase() === 'images' ||
-        (parseInlineImageKeys(match[2])?.length ?? 0) > 1
-          ? 'imageRow'
-          : 'image',
-      options:
-        match[1].toLowerCase() === 'images' ||
-        (parseInlineImageKeys(match[2])?.length ?? 0) > 1
+    const spaceSize = normalizeCssSize(match[4]?.toLowerCase())
+    if (spaceSize) {
+      items.push({
+        type: 'space',
+        size: spaceSize,
+      })
+    } else {
+      const imageType = match[1]?.toLowerCase() ?? 'image'
+      const imageKeys = parseInlineImageKeys(match[2])
+      const isImageRow = imageType === 'images' || (imageKeys?.length ?? 0) > 1
+
+      items.push({
+        type: isImageRow ? 'imageRow' : 'image',
+        options: isImageRow
           ? {
-              imageKeys: parseInlineImageKeys(match[2]),
+              imageKeys,
               ...parseInlineImageOptions(match[3]),
             }
           : {
-              imageKey: parseInlineImageKeys(match[2])?.[0] ?? '1',
+              imageKey: imageKeys?.[0] ?? '1',
               ...parseInlineImageOptions(match[3]),
             },
-    })
+      })
+    }
 
     cursor = matchEnd
     shouldTrimLeadingBreak = true
-    match = INLINE_IMAGE_TOKEN.exec(fullText)
+    match = INLINE_BODY_TOKEN.exec(fullText)
   }
 
   if (cursor < fullText.length) {
@@ -1644,6 +1655,13 @@ function PagePreview({
                 cellFontFamily={bodyStyle?.fontFamily}
                 baseFontSize={bodyStyle?.fontSize}
                 baseTextColor={bodyStyle?.textColor}
+              />
+            ) : item.type === 'space' ? (
+              <div
+                key={`space-${itemIndex}`}
+                className="pageBodySpacer"
+                style={{ height: item.size }}
+                aria-hidden="true"
               />
             ) : (
               item.type === 'image' ? (
