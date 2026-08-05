@@ -1,5 +1,7 @@
 import { parseCsv } from './csv'
 
+export type TextAlignment = 'left' | 'center' | 'right'
+
 export type StepStyle = {
   backgroundColor?: string
   textColor?: string
@@ -9,6 +11,7 @@ export type StepStyle = {
   italic?: boolean
   underline?: boolean
   strikethrough?: boolean
+  textAlign?: TextAlignment
 }
 
 export type RichTextRun = {
@@ -262,6 +265,11 @@ function sanitizeBoolean(value: unknown) {
   return undefined
 }
 
+function sanitizeTextAlignment(value: unknown): TextAlignment | undefined {
+  const text = toStringValue(value).trim().toLowerCase()
+  return text === 'left' || text === 'center' || text === 'right' ? text : undefined
+}
+
 function sanitizeSideTextRotation(value: unknown): SideBlockDefinition['textRotation'] {
   const text = toStringValue(value).trim().toLowerCase()
   if (!text) return undefined
@@ -362,6 +370,11 @@ function parseStepStyle(value: unknown): StepStyle | undefined {
     sanitizeBoolean(record.strikethrough) ??
     sanitizeBoolean(record.strikeThrough) ??
     sanitizeBoolean(record.strike_through)
+  const textAlign =
+    sanitizeTextAlignment(record.textAlign) ??
+    sanitizeTextAlignment(record.text_align) ??
+    sanitizeTextAlignment(record.horizontalAlignment) ??
+    sanitizeTextAlignment(record.horizontal_alignment)
 
   if (
     !backgroundColor &&
@@ -371,7 +384,8 @@ function parseStepStyle(value: unknown): StepStyle | undefined {
     bold === undefined &&
     italic === undefined &&
     underline === undefined &&
-    strikethrough === undefined
+    strikethrough === undefined &&
+    textAlign === undefined
   ) {
     return undefined
   }
@@ -385,6 +399,7 @@ function parseStepStyle(value: unknown): StepStyle | undefined {
     italic,
     underline,
     strikethrough,
+    textAlign,
   }
 }
 
@@ -974,7 +989,7 @@ export const sheetColumnGuide = [
   ['page_no', 'Display page number. This does not control sorting.'],
   ['step', 'Top label of the page.'],
   ['side', 'Comma-separated SIDE block ids such as 1,2,3. These ids are resolved from the separate side sheet when using Apps Script.'],
-  ['body', 'Free text body. Use [[box]]text[[/box]] for a red text box or [[box:#1f78c8]]text[[/box]] for a custom color. Use {{image}}, {{image:2}}, {{image:3}} for single images, or {{images:1,2,3}} for one horizontal row of multiple images.'],
+  ['body', 'Free text body. Use [[left]], [[center]], or [[right]] blocks for partial alignment overrides. Use [[box]]text[[/box]] for a red text box or [[box:#1f78c8]]text[[/box]] for a custom color. Use {{image}}, {{image:2}}, {{image:3}} for single images, or {{images:1,2,3}} for one horizontal row of multiple images.'],
   ['image_1', 'Primary image URL, Google Drive share link, or linked cell. Legacy column name image is also supported.'],
   ['image_2', 'Optional second image source. Also supports image_3, image_4, and so on.'],
   ['image_position', 'Optional fallback. top or bottom. Used only when BODY does not contain {{image}}.'],

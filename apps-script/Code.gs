@@ -32,6 +32,7 @@ function doGet() {
   var fontWeights = range.getFontWeights();
   var fontStyles = range.getFontStyles();
   var fontLines = range.getFontLines();
+  var horizontalAlignments = range.getHorizontalAlignments();
   var richTextValues = range.getRichTextValues();
   var headers = values[0];
 
@@ -95,6 +96,7 @@ function doGet() {
         fontWeight: fontWeights[rowIndex][bodyColumnIndex],
         fontStyle: fontStyles[rowIndex][bodyColumnIndex],
         fontLine: fontLines[rowIndex][bodyColumnIndex],
+        horizontalAlignment: horizontalAlignments[rowIndex][bodyColumnIndex],
       });
       row.bodyRuns = extractRuns(
         richTextValues[rowIndex][bodyColumnIndex],
@@ -132,6 +134,7 @@ function extractCellStyle_(styleSeed) {
     italic: String(styleSeed.fontStyle || '').toLowerCase() === 'italic',
     underline: fontLine === 'underline',
     strikethrough: fontLine === 'line-through',
+    textAlign: parseTextAlignment_(styleSeed.horizontalAlignment),
   };
 }
 
@@ -141,6 +144,11 @@ function normalizeRunValue_(value) {
 
 function normalizeHeader_(value) {
   return String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function parseTextAlignment_(value) {
+  var text = String(value || '').trim().toLowerCase();
+  return text === 'left' || text === 'center' || text === 'right' ? text : '';
 }
 
 function isImageHeader_(header) {

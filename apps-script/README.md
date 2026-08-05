@@ -27,6 +27,9 @@ The web app returns JSON like this:
         "backgroundColor": "#d94b67",
         "textColor": "#ffffff",
         "fontFamily": "Noto Serif JP"
+      },
+      "bodyStyle": {
+        "textAlign": "center"
       }
     }
   ]
@@ -36,6 +39,15 @@ The web app returns JSON like this:
 Inside a `body` cell, wrap text in `[[box]]...[[/box]]` to place it on the
 default red text box. Specify another background color after a colon, for
 example `[[box:#1f78c8]]...[[/box]]`.
+
+The Apps Script response includes the `body` cell's horizontal alignment in
+`bodyStyle.textAlign`. The app supports `left`, `center`, and `right`; a cell
+without an explicit supported alignment falls back to left alignment.
+
+To override alignment for only part of a `body` cell, wrap that block in
+`[[left]]...[[/left]]`, `[[center]]...[[/center]]`, or
+`[[right]]...[[/right]]`. Alignment blocks can contain `[[box]]` and `[[hl]]`
+decorations. Invalid or unclosed alignment tags remain visible as regular text.
 
 Optional: create a `settings` sheet with these keys in column A and values in column B.
 

@@ -16,6 +16,7 @@ import {
   type RichTextRun,
   type SideBlockDefinition,
   type SideBlockDefinitions,
+  type TextAlignment,
 } from './lib/hintbook'
 
 const defaultAppsScriptSource =
@@ -27,6 +28,7 @@ const BODY_FONT_SCALE = 2.5
 const INLINE_BODY_TOKEN =
   /\{\{(?:(images?|img)(?::([0-9,\s]+))?(?:\s+([^}]+))?|space\s*:\s*((?:\d+(?:\.\d+)?|\.\d+)(?:px|mm|cm|pt|em|rem)?)\s*)\}\}/gi
 const INLINE_DECORATION_TOKEN = /\[\[(\/?)(hl|box)(?:\s*:\s*([^[\]]+))?\]\]/gi
+const INLINE_ALIGNMENT_TOKEN = /\[\[(\/?)(left|center|right)\]\]/gi
 const DEFAULT_INLINE_HIGHLIGHT_COLOR = '#fff2a8'
 const DEFAULT_INLINE_BOX_COLOR = '#d94b67'
 const DRIVE_IMAGE_MAX_WIDTH = 4000
@@ -73,6 +75,7 @@ type BodyContentItem =
   | {
       type: 'text'
       runs: RenderTextRun[]
+      textAlign?: TextAlignment
     }
   | {
       type: 'image'
@@ -655,6 +658,109 @@ function applyInlineDecorations(sourceRuns: RichTextRun[]): RenderTextRun[] {
   return decoratedRuns
 }
 
+type BodyAlignmentToken = {
+  start: number
+  end: number
+  closing: boolean
+  alignment: TextAlignment
+}
+
+type BodyAlignmentSegment = {
+  runs: RenderTextRun[]
+  textAlign?: TextAlignment
+}
+
+function buildBodyAlignmentSegments(sourceRuns: RenderTextRun[]): BodyAlignmentSegment[] {
+  const fullText = sourceRuns.map((run) => run.text).join('')
+  INLINE_ALIGNMENT_TOKEN.lastIndex = 0
+  const tokens: BodyAlignmentToken[] = Array.from(
+    fullText.matchAll(INLINE_ALIGNMENT_TOKEN),
+    (match) => {
+      const start = match.index ?? 0
+      return {
+        start,
+        end: start + match[0].length,
+        closing: match[1] === '/',
+        alignment: match[2].toLowerCase() as TextAlignment,
+      }
+    },
+  )
+
+  if (tokens.length === 0) {
+    return [{ runs: sourceRuns }]
+  }
+
+  const validTokenIndexes = new Set<number>()
+  const openTokens: Array<{ index: number; alignment: TextAlignment }> = []
+  let hasInvalidNesting = false
+
+  tokens.forEach((token, index) => {
+    if (!token.closing) {
+      openTokens.push({ index, alignment: token.alignment })
+      return
+    }
+
+    const activeToken = openTokens[openTokens.length - 1]
+    if (activeToken?.alignment !== token.alignment) {
+      hasInvalidNesting = true
+      return
+    }
+
+    validTokenIndexes.add(activeToken.index)
+    validTokenIndexes.add(index)
+    openTokens.pop()
+  })
+
+  if (hasInvalidNesting || openTokens.length > 0 || validTokenIndexes.size === 0) {
+    return [{ runs: sourceRuns }]
+  }
+
+  const segments: BodyAlignmentSegment[] = []
+  const activeAlignments: TextAlignment[] = []
+  let cursor = 0
+  let trimLeadingBreak = false
+
+  const appendSegment = (end: number, trimTrailingBreak: boolean) => {
+    let runs = sliceRunsByRange(sourceRuns, cursor, end)
+    if (trimLeadingBreak) {
+      runs = trimLeadingLineBreak(runs)
+    }
+    if (trimTrailingBreak) {
+      runs = trimTrailingLineBreak(runs)
+    }
+    if (runs.length === 0) {
+      return
+    }
+
+    const textAlign = activeAlignments[activeAlignments.length - 1]
+    const lastSegment = segments[segments.length - 1]
+    if (lastSegment && lastSegment.textAlign === textAlign) {
+      appendRuns(lastSegment.runs, runs)
+      return
+    }
+
+    segments.push({ runs, textAlign })
+  }
+
+  tokens.forEach((token, index) => {
+    if (!validTokenIndexes.has(index)) {
+      return
+    }
+
+    appendSegment(token.start, true)
+    if (token.closing) {
+      activeAlignments.pop()
+    } else {
+      activeAlignments.push(token.alignment)
+    }
+    cursor = token.end
+    trimLeadingBreak = true
+  })
+
+  appendSegment(fullText.length, false)
+  return segments
+}
+
 function applyInlineImageOption(
   options: Pick<InlineImageOptions, 'source' | 'width' | 'height' | 'align' | 'fit'>,
   key: string,
@@ -744,23 +850,10 @@ function sortedImageKeys(imageSources: ImageSources) {
   return Object.keys(imageSources).sort((first, second) => Number(first) - Number(second))
 }
 
-function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContentItem[] {
-  const sourceRuns =
-    runs && runs.length > 0
-      ? runs
-      : fallback
-        ? [
-            {
-              text: fallback,
-            },
-          ]
-        : []
-
-  if (sourceRuns.length === 0) {
-    return []
-  }
-
-  const normalizedRuns = applyInlineDecorations(sourceRuns)
+function buildBodyContentItemsForRuns(
+  normalizedRuns: RenderTextRun[],
+  textAlign?: TextAlignment,
+): BodyContentItem[] {
   const fullText = normalizedRuns.map((run) => run.text).join('')
   const items: BodyContentItem[] = []
   let cursor = 0
@@ -783,6 +876,7 @@ function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContent
         items.push({
           type: 'text',
           runs: textRuns,
+          textAlign,
         })
       }
     }
@@ -826,11 +920,34 @@ function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContent
       items.push({
         type: 'text',
         runs: textRuns,
+        textAlign,
       })
     }
   }
 
   return items
+}
+
+function buildBodyContentItems(runs?: RichTextRun[], fallback = ''): BodyContentItem[] {
+  const sourceRuns =
+    runs && runs.length > 0
+      ? runs
+      : fallback
+        ? [
+            {
+              text: fallback,
+            },
+          ]
+        : []
+
+  if (sourceRuns.length === 0) {
+    return []
+  }
+
+  const normalizedRuns = applyInlineDecorations(sourceRuns)
+  return buildBodyAlignmentSegments(normalizedRuns).flatMap((segment) =>
+    buildBodyContentItemsForRuns(segment.runs, segment.textAlign),
+  )
 }
 
 function scaledFontSize(size: number | undefined, multiplier: number) {
@@ -931,6 +1048,7 @@ function RichText({
   baseFontSize,
   baseTextColor,
   omitFontFamily,
+  style,
 }: {
   runs?: RichTextRun[]
   fallback: string
@@ -941,6 +1059,7 @@ function RichText({
   baseFontSize?: number
   baseTextColor?: string
   omitFontFamily?: boolean
+  style?: CSSProperties
 }) {
   const sourceRuns =
     runs && runs.length > 0
@@ -954,7 +1073,7 @@ function RichText({
   const runGroups = groupRunsByInlineBox(sourceRuns)
 
   return (
-    <div className={className}>
+    <div className={className} style={style}>
       {runGroups.map((group, groupIndex) => {
         const effectiveBaseTextColor = group.inlineBox?.textColor ?? baseTextColor
         const content = group.runs.map((run, runIndex) => {
@@ -1352,6 +1471,7 @@ function BodyTextBlock({
   cellFontFamily,
   baseFontSize,
   baseTextColor,
+  textAlign,
 }: {
   runs: RichTextRun[]
   multiplier: number
@@ -1359,6 +1479,7 @@ function BodyTextBlock({
   cellFontFamily?: string
   baseFontSize?: number
   baseTextColor?: string
+  textAlign?: TextAlignment
 }) {
   if (runs.length === 0) {
     return null
@@ -1374,6 +1495,7 @@ function BodyTextBlock({
       cellFontFamily={cellFontFamily}
       baseFontSize={baseFontSize}
       baseTextColor={baseTextColor}
+      style={textAlign ? { textAlign } : undefined}
     />
   )
 }
@@ -1578,6 +1700,7 @@ function PagePreview({
     borderColor: stepStyle?.backgroundColor,
     backgroundColor: bodyStyle?.backgroundColor,
     color: bodyStyle?.textColor,
+    textAlign: bodyStyle?.textAlign ?? 'left',
     fontFamily: bodyFontFamily,
     fontSize: scaledFontSize(bodyStyle?.fontSize, bodyMultiplier),
     fontWeight: bodyStyle?.bold ? '700' : undefined,
@@ -1671,6 +1794,7 @@ function PagePreview({
                 cellFontFamily={bodyStyle?.fontFamily}
                 baseFontSize={bodyStyle?.fontSize}
                 baseTextColor={bodyStyle?.textColor}
+                textAlign={item.textAlign}
               />
             ) : item.type === 'space' ? (
               <div
@@ -2046,7 +2170,8 @@ function App() {
           </p>
           <p className="note">
             Apps Script route can also read the step cell background color, text color,
-            and font family, plus shared SIDE blocks from a separate side sheet.
+            and font family, the body cell alignment, plus shared SIDE blocks from a
+            separate side sheet.
           </p>
           <p className="note">
             Use the <code>settings</code> sheet to set shared fonts like{' '}
@@ -2087,6 +2212,11 @@ function App() {
           <p className="note">
             Use <code>{'[[box]]text[[/box]]'}</code> for a red text box, or{' '}
             <code>{'[[box:#1f78c8]]text[[/box]]'}</code> for a custom color.
+          </p>
+          <p className="note">
+            Override part of the body alignment with <code>{'[[left]]...[[/left]]'}</code>,{' '}
+            <code>{'[[center]]...[[/center]]'}</code>, or{' '}
+            <code>{'[[right]]...[[/right]]'}</code>.
           </p>
           <p className="note">
             PDF export uses the browser print dialog. Select <code>Save as PDF</code>.
