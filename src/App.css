@@ -604,6 +604,10 @@ pre {
   flex: 0 0 auto;
 }
 
+.pageBodyText + .pageBodyText {
+  margin-block-start: calc(0px - var(--page-body-item-gap));
+}
+
 .pageBodySpacer {
   width: 100%;
   flex: 0 0 auto;
