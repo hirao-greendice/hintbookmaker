@@ -40,6 +40,8 @@ example `[[box:#1f78c8]]...[[/box]]`.
 Optional: create a `settings` sheet with these keys in column A and values in column B.
 
 ```text
+name,迷宮からの脱出
+version,v1
 step_font_family,MS Mincho
 body_font_family,Yu Gothic
 side_font_family,MS Mincho
@@ -51,6 +53,8 @@ side_width,40
 
 Recommended meaning:
 
+- `name`: text placed before `ヒント` in the suggested PDF filename
+- `version`: version text placed after `ヒント`; enter the complete text, such as `v1`
 - `step_font_family`: font used for STEP
 - `body_font_family`: font used for BODY
 - `side_font_family`: font used for SIDE

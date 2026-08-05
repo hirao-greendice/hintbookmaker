@@ -33,6 +33,11 @@ export type RenderSettings = {
   sideWidth?: string
 }
 
+export type PdfMetadata = {
+  name?: string
+  version?: string
+}
+
 export type ImageSources = Record<string, string>
 
 export type SideBlockDefinition = {
@@ -90,6 +95,7 @@ export type FormatResult = {
   spreads: PrintSpread[]
   warnings: string[]
   settings?: RenderSettings
+  pdfMetadata?: PdfMetadata
   sideDefinitions?: SideBlockDefinitions
 }
 
@@ -573,6 +579,28 @@ function parseRenderSettings(value: unknown): RenderSettings | undefined {
   return settings
 }
 
+function parsePdfMetadata(value: unknown): PdfMetadata | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).map(
+    ([key, entryValue]) => [normalizeHeader(key), toStringValue(entryValue).trim()] as const,
+  )
+  const readValue = (aliases: string[]) => {
+    const normalizedAliases = aliases.map(normalizeHeader)
+    return entries.find(
+      ([key, entryValue]) => entryValue && normalizedAliases.includes(key),
+    )?.[1]
+  }
+  const metadata: PdfMetadata = {
+    name: readValue(['name', 'pdf_name', 'book_name', '名前', 'タイトル']),
+    version: readValue(['version', 'pdf_version', 'バージョン']),
+  }
+
+  return metadata.name || metadata.version ? metadata : undefined
+}
+
 function buildPrintSpreads(pages: FormattedPage[]): PrintSpread[] {
   const chunks = orderChunks(pages, 4)
 
@@ -605,6 +633,7 @@ function buildResultFromSeeds(
   seeds: RowSeed[],
   settings?: RenderSettings,
   sideDefinitions?: SideBlockDefinitions,
+  pdfMetadata?: PdfMetadata,
 ): FormatResult {
   const warnings: string[] = []
   const orderMap = new Map<number, SheetRecord>()
@@ -675,6 +704,7 @@ function buildResultFromSeeds(
     spreads,
     warnings,
     settings,
+    pdfMetadata,
     sideDefinitions,
   }
 }
@@ -785,9 +815,10 @@ export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
   if (!rows) {
     throw new Error('Apps Script response must have a rows array.')
   }
-  const settings = parseRenderSettings(
-    container.settings ?? container.renderSettings ?? container.render_settings,
-  )
+  const settingsSource =
+    container.settings ?? container.renderSettings ?? container.render_settings
+  const settings = parseRenderSettings(settingsSource)
+  const pdfMetadata = parsePdfMetadata(settingsSource)
   const sideDefinitions = parseSideBlockDefinitions(
     container.sideDefinitions ?? container.side_definitions,
   )
@@ -825,7 +856,7 @@ export function formatHintBookFromAppsScript(payload: unknown): FormatResult {
     } satisfies RowSeed
   })
 
-  return buildResultFromSeeds([], seeds, settings, sideDefinitions)
+  return buildResultFromSeeds([], seeds, settings, sideDefinitions, pdfMetadata)
 }
 
 export const defaultSheetSource =
@@ -843,6 +874,8 @@ export const sampleCsv = `order,page_no,step,side,body,image_1
 
 export const sampleAppsScriptResponse = {
   settings: {
+    name: 'サンプル',
+    version: 'v1',
     step_font_family: 'MS Mincho',
     body_font_family: 'Yu Gothic',
     side_font_family: 'MS Mincho',

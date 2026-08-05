@@ -11,6 +11,7 @@ import {
   type FormatResult,
   type FormattedPage,
   type ImageSources,
+  type PdfMetadata,
   type RenderSettings,
   type RichTextRun,
   type SideBlockDefinition,
@@ -110,6 +111,21 @@ type PreviewSpread = {
 }
 
 type ScrollNavDirection = 'up' | 'down'
+
+function sanitizePdfFileNamePart(value?: string) {
+  return Array.from((value ?? '').trim(), (character) =>
+    character.charCodeAt(0) < 32 || '\\/:*?"<>|'.includes(character) ? '_' : character,
+  )
+    .join('')
+    .replace(/[. ]+$/g, '')
+}
+
+function buildPdfTitle(previewMode: PreviewMode, metadata?: PdfMetadata) {
+  const category = previewMode === 'book' ? '【冊子版】' : '【印刷用】'
+  const name = sanitizePdfFileNamePart(metadata?.name)
+  const version = sanitizePdfFileNamePart(metadata?.version)
+  return `${category}${name}ヒント${version}`
+}
 
 function downloadJson(result: FormatResult) {
   const blob = new Blob([JSON.stringify(result, null, 2)], {
@@ -1873,12 +1889,20 @@ function App() {
     setStatus('Preparing images for PDF export...')
     await waitForPrintableImages(document.querySelector('.previewArea') ?? document)
 
+    const pdfTitle = buildPdfTitle(previewMode, result?.pdfMetadata)
+
     setStatus(
       `Opening print dialog for ${previewSpreads.length} ${
         previewMode === 'book' ? 'book preview' : 'print layout'
-      } sheets. Choose "Save as PDF" to download.`,
+      } sheets. Choose "Save as PDF" to download as ${pdfTitle}.pdf.`,
     )
-    window.print()
+    const originalTitle = document.title
+    document.title = pdfTitle
+    try {
+      window.print()
+    } finally {
+      document.title = originalTitle
+    }
   }
 
   return (
@@ -1967,7 +1991,7 @@ function App() {
               onClick={() => setPreviewMode('book')}
               disabled={previewMode === 'book'}
             >
-              本にした
+              冊子版
             </button>
           </div>
           <div className="previewScaleControl" aria-label="Preview display size">
